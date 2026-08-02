@@ -1,0 +1,5 @@
+import { Card, CardContent } from "@/components/ui/card";
+import { Input, Label } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { resetPasswordAction } from "../actions";
+export default async function ResetPage({ searchParams }: { searchParams: Promise<Record<string,string|undefined>> }) { const p=await searchParams; return <><h1 className="text-3xl font-bold">Choose a new password</h1><p className="mt-2 text-sm text-slate-500">Use at least 10 characters and avoid reused passwords.</p><Card className="mt-6"><CardContent><form action={resetPasswordAction} className="space-y-5">{p.error?<p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{p.error}</p>:null}<div><Label>New password</Label><Input name="password" type="password" minLength={10} required/></div><div><Label>Confirm password</Label><Input name="confirm" type="password" minLength={10} required/></div><Button className="w-full">Update password</Button></form></CardContent></Card></>; }

@@ -1,0 +1,9 @@
+{
+  "name": "SchoolDB Management System",
+  "short_name": "SchoolDB",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "description": "Multi-school administration, academics, finance and operations platform."
+}
