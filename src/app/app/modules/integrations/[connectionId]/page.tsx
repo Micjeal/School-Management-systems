@@ -6,40 +6,63 @@ import { IntegrationStatusBadge } from "@/components/integrations/integration-st
 import { IntegrationEventsTable } from "@/components/integrations/integration-events-table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, TestTube, RefreshCw, Settings, Power, PowerOff, RotateCcw, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  TestTube,
+  RefreshCw,
+  Settings,
+  Power,
+  PowerOff,
+  RotateCcw,
+  Trash2
+} from "lucide-react";
 import { getProviderByCode } from "@/lib/integrations/providers";
 import { getScopeLabel } from "@/lib/integrations/scope";
 import type { IntegrationConnection, IntegrationEvent } from "@/lib/integrations/types";
+import { isUuid } from "@/lib/auth/access-errors";
+import Link from "next/link";
+import {
+  activateIntegrationAction,
+  disableIntegrationAction,
+  deleteIntegrationAction,
+  reconnectIntegrationAction,
+  requestIntegrationSyncAction,
+  testIntegrationAction
+} from "@/app/app/modules/integrations/actions";
 
 export default async function IntegrationDetailPage({
   params,
-  searchParams,
+  searchParams
 }: {
-  params: { connectionId: string };
-  searchParams: { message?: string; error?: string };
+  params: Promise<{ connectionId: string }>;
+  searchParams: Promise<{ message?: string; error?: string }>;
 }) {
+  const [{ connectionId }, query] = await Promise.all([params, searchParams]);
   const context = await requireUserContext("settings.manage");
+  if (!isUuid(connectionId)) notFound();
 
   const supabase = await createClient();
 
   // Load the connection
-  const { data: connection, error: connectionError } = await (supabase
+  let connectionQuery = supabase
     .from("integration_connections")
-    .select(`
-      *,
+    .select(
+      `
+      id,school_id,provider,integration_type,name,status,configuration,last_connected_at,last_error,created_at,updated_at,version,
       schools(name)
-    `)
-    .eq("id", params.connectionId)
-    .maybeSingle() as any);
+      `
+    )
+    .eq("id", connectionId);
+  connectionQuery = context.active_school_id
+    ? connectionQuery.eq("school_id", context.active_school_id)
+    : connectionQuery.is("school_id", null);
+  const { data: connection, error: connectionError } = await (connectionQuery.maybeSingle() as any);
 
   if (connectionError || !connection) {
     notFound();
   }
 
-  // Verify authorization
-  if (!canManageIntegration(context, connection.school_id)) {
-    redirect("/access-denied");
-  }
+  if (!canManageIntegration(context, connection.school_id)) notFound();
 
   const provider = getProviderByCode(connection.provider);
   const scopeLabel = getScopeLabel(connection.school_id, connection.schools?.name);
@@ -48,7 +71,7 @@ export default async function IntegrationDetailPage({
   const { data: events } = await (supabase
     .from("integration_events")
     .select("*")
-    .eq("integration_connection_id", params.connectionId)
+    .eq("integration_connection_id", connectionId)
     .order("received_at", { ascending: false })
     .limit(20) as any);
 
@@ -58,7 +81,7 @@ export default async function IntegrationDetailPage({
     messaging: "Messaging",
     identity: "Identity",
     learning: "Learning",
-    storage: "Storage",
+    storage: "Storage"
   };
 
   return (
@@ -66,29 +89,24 @@ export default async function IntegrationDetailPage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" href="/app/modules/integrations">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+          <Button variant="ghost" size="sm" asChild><Link href="/app/modules/integrations"><ArrowLeft className="h-4 w-4 mr-2" />Back</Link></Button>
           <div>
             <h1 className="text-2xl font-bold">{connection.name}</h1>
-            <p className="text-muted-foreground">
-              {provider?.name || connection.provider}
-            </p>
+            <p className="text-muted-foreground">{provider?.name || connection.provider}</p>
           </div>
         </div>
         <IntegrationStatusBadge status={connection.status} />
       </div>
 
       {/* Messages */}
-      {searchParams.message && (
+      {query.message && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded">
-          {searchParams.message}
+          {query.message}
         </div>
       )}
-      {searchParams.error && (
+      {query.error && (
         <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded">
-          {searchParams.error}
+          {query.error}
         </div>
       )}
 
@@ -139,60 +157,66 @@ export default async function IntegrationDetailPage({
           <CardTitle>Actions</CardTitle>
         </CardHeader>
         <CardContent>
+          {!provider?.implemented ? (
+            <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+              This provider is unavailable because no credential loader and processing adapter are
+              implemented. Existing configuration may be inspected or disabled, but it cannot be
+              activated, tested, reconnected, or synchronized.
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
-            {connection.status === "active" && (
-              <form action="/app/modules/integrations/actions" method="POST">
-                <input type="hidden" name="connectionId" value={params.connectionId} />
-                <Button type="submit" variant="secondary" size="sm" formAction="/app/modules/integrations/actions/testIntegrationAction">
+            {provider?.implemented && connection.status === "active" && (
+              <form action={testIntegrationAction.bind(null, connectionId)}>
+                <input type="hidden" name="connectionId" value={connectionId} />
+                <Button type="submit" variant="secondary" size="sm">
                   <TestTube className="h-4 w-4 mr-2" />
                   Test connection
                 </Button>
               </form>
             )}
-            {connection.status === "active" && provider?.supportsOutbound && (
-              <form action="/app/modules/integrations/actions" method="POST">
-                <input type="hidden" name="connectionId" value={params.connectionId} />
-                <Button type="submit" variant="secondary" size="sm" formAction="/app/modules/integrations/actions/requestIntegrationSyncAction">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Sync now
-                </Button>
-              </form>
-            )}
-            <Button variant="secondary" size="sm" href={`/app/modules/integrations/${params.connectionId}/edit`}>
-              <Settings className="h-4 w-4 mr-2" />
-              Edit settings
-            </Button>
-            {connection.status === "inactive" && (
-              <form action="/app/modules/integrations/actions" method="POST">
-                <input type="hidden" name="connectionId" value={params.connectionId} />
-                <Button type="submit" variant="secondary" size="sm" formAction="/app/modules/integrations/actions/activateIntegrationAction">
+            {provider?.implemented &&
+              connection.status === "active" &&
+              provider.supportsOutbound && (
+                <form action={requestIntegrationSyncAction}>
+                  <input type="hidden" name="connectionId" value={connectionId} />
+                  <Button type="submit" variant="secondary" size="sm">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sync now
+                  </Button>
+                </form>
+              )}
+            <Button variant="secondary" size="sm" asChild><Link href={`/app/modules/integrations/${connectionId}/edit`}><Settings className="h-4 w-4 mr-2" />Edit settings</Link></Button>
+            {provider?.implemented && connection.status === "inactive" && (
+              <form action={activateIntegrationAction}>
+                <input type="hidden" name="connectionId" value={connectionId} />
+                <Button type="submit" variant="secondary" size="sm">
                   <Power className="h-4 w-4 mr-2" />
                   Activate
                 </Button>
               </form>
             )}
             {connection.status === "active" && (
-              <form action="/app/modules/integrations/actions" method="POST">
-                <input type="hidden" name="connectionId" value={params.connectionId} />
-                <Button type="submit" variant="secondary" size="sm" formAction="/app/modules/integrations/actions/disableIntegrationAction">
+              <form action={disableIntegrationAction}>
+                <input type="hidden" name="connectionId" value={connectionId} />
+                <Button type="submit" variant="secondary" size="sm">
                   <PowerOff className="h-4 w-4 mr-2" />
                   Disable
                 </Button>
               </form>
             )}
-            {connection.status === "error" && (
-              <form action="/app/modules/integrations/actions" method="POST">
-                <input type="hidden" name="connectionId" value={params.connectionId} />
-                <Button type="submit" variant="secondary" size="sm" formAction="/app/modules/integrations/actions/reconnectIntegrationAction">
+            {provider?.implemented && connection.status === "error" && (
+              <form action={reconnectIntegrationAction}>
+                <input type="hidden" name="connectionId" value={connectionId} />
+                <Button type="submit" variant="secondary" size="sm">
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Reconnect
                 </Button>
               </form>
             )}
             {context.platform_roles.some((r) => r.code === "super_admin") && (
-              <form action="/app/modules/integrations/actions" method="POST">
-                <input type="hidden" name="connectionId" value={params.connectionId} />
-                <Button type="submit" variant="danger" size="sm" formAction="/app/modules/integrations/actions/deleteIntegrationAction">
+              <form action={deleteIntegrationAction}>
+                <input type="hidden" name="connectionId" value={connectionId} />
+                <Button type="submit" variant="danger" size="sm">
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete
                 </Button>

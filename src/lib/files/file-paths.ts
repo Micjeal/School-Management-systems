@@ -29,7 +29,11 @@ export function parseFileSource(source: string | null): FileSource | null {
     "report_card",
     "payment_receipt",
     "message_attachment",
-    "user_upload",
+    "application_document",
+    "assessment_file",
+    "import",
+    "export",
+    "school_branding",
   ];
 
   if (validSources.includes(source as FileSource)) {
@@ -48,7 +52,11 @@ export function getFileSourceLabel(source: FileSource): string {
     report_card: "Report Card",
     payment_receipt: "Payment Receipt",
     message_attachment: "Message Attachment",
-    user_upload: "Your Upload",
+    application_document: "Application Document",
+    assessment_file: "Assessment File",
+    import: "Import File",
+    export: "Export File",
+    school_branding: "Branding Asset",
   };
   return labels[source];
 }

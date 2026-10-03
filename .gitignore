@@ -4,9 +4,17 @@ out/
 coverage/
 playwright-report/
 test-results/
+.vercel/
+*.tsbuildinfo
+.freebuff/
+.generated-js-backup/
 .env
 .env.local
 .env.*.local
+vercel-import.env
 !.env.example
 *.log
 .DS_Store
+
+.vercel
+.env*.local

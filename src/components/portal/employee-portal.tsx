@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { BriefcaseBusiness, CalendarDays, CalendarClock, ReceiptText, GraduationCap } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CalendarDays,
+  CalendarClock,
+  ReceiptText,
+  GraduationCap
+} from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PortalSection } from "./portal-section";
@@ -13,7 +19,31 @@ type EmployeePortalProps = {
 
 export function EmployeePortal({ data }: EmployeePortalProps) {
   return (
-    <PortalSection title="My employment" icon={<BriefcaseBusiness className="h-5 w-5 text-slate-600" />}>
+    <PortalSection
+      title="Staff Portal"
+      icon={<BriefcaseBusiness className="h-5 w-5 text-slate-600" />}
+    >
+      <div className="mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {(
+          [
+            ["My Profile", "/app/profile"],
+            ["My Employment", "/app/portal/employment"],
+            ["Payslips", "/app/portal/payslips"],
+            ["Leave", "/app/portal/leave"],
+            ["Messages", "/app/portal/messages"],
+            ["Files", "/app/portal/files"],
+            ["Notifications", "/app/portal/notifications"]
+          ] as const
+        ).map(([label, href]) => (
+          <Link
+            key={href}
+            href={href}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <EmployeeSummaryCard data={data} />
         {data.isTeacher && <EmployeeScheduleCard data={data} />}
@@ -79,13 +109,13 @@ function EmployeeScheduleCard({ data }: { data: EmployeePortalData }) {
     return (
       <Card>
         <CardHeader>
-          <h3 className="font-semibold">Today's Schedule</h3>
+          <h3 className="font-semibold">Today&apos;s Schedule</h3>
         </CardHeader>
         <CardContent>
           <PortalEmptyState
             icon={<CalendarDays className="h-8 w-8" />}
-            title="No lessons today"
-            description="You have no scheduled lessons for today."
+            title="No lessons scheduled today"
+            description="You have no teaching assignments scheduled for today."
           />
         </CardContent>
       </Card>
@@ -95,7 +125,7 @@ function EmployeeScheduleCard({ data }: { data: EmployeePortalData }) {
   return (
     <Card>
       <CardHeader>
-        <h3 className="font-semibold">Today's Schedule</h3>
+        <h3 className="font-semibold">Today&apos;s Schedule</h3>
       </CardHeader>
       <CardContent className="space-y-3">
         {data.todayLessons.map((lesson) => (
@@ -113,9 +143,7 @@ function EmployeeScheduleCard({ data }: { data: EmployeePortalData }) {
                 <p>{lesson.endsAt}</p>
               </div>
             </div>
-            {lesson.room && (
-              <p className="mt-2 text-xs text-slate-500">Room: {lesson.room}</p>
-            )}
+            {lesson.room && <p className="mt-2 text-xs text-slate-500">Room: {lesson.room}</p>}
           </div>
         ))}
       </CardContent>
@@ -134,7 +162,7 @@ function EmployeeLeaveCard({ data }: { data: EmployeePortalData }) {
           <PortalEmptyState
             icon={<CalendarClock className="h-8 w-8" />}
             title="No leave requests"
-            description="You have not submitted any leave requests."
+            description="You have not submitted any leave requests yet."
           />
         </CardContent>
       </Card>
@@ -148,12 +176,16 @@ function EmployeeLeaveCard({ data }: { data: EmployeePortalData }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {data.leaveRequests.map((request) => (
-          <div key={request.id} className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3">
+          <div
+            key={request.id}
+            className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3"
+          >
             <div>
               <p className="font-medium text-sm">{request.leaveType}</p>
               <p className="text-xs text-slate-600">
                 {formatDate(request.startsOn)} – {formatDate(request.endsOn)}
-                {request.requestedDays > 0 && ` · ${request.requestedDays} day${request.requestedDays > 1 ? 's' : ''}`}
+                {request.requestedDays > 0 &&
+                  ` · ${request.requestedDays} day${request.requestedDays > 1 ? "s" : ""}`}
               </p>
             </div>
             <Badge>{request.status}</Badge>
@@ -174,8 +206,8 @@ function EmployeePayslipsCard({ data }: { data: EmployeePortalData }) {
         <CardContent>
           <PortalEmptyState
             icon={<ReceiptText className="h-8 w-8" />}
-            title="No payslips available"
-            description="No payroll records have been processed yet."
+            title="No payslips available yet"
+            description="Your payslips will appear here once payroll has been processed."
           />
         </CardContent>
       </Card>
@@ -194,7 +226,10 @@ function EmployeePayslipsCard({ data }: { data: EmployeePortalData }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {data.payslips.map((payslip) => (
-          <div key={payslip.id} className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3">
+          <div
+            key={payslip.id}
+            className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3"
+          >
             <div>
               <p className="font-medium text-sm">{payslip.payrollPeriod}</p>
               <p className="text-xs text-slate-600">{payslip.paymentStatus}</p>

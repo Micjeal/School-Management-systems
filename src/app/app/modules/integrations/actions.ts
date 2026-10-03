@@ -10,17 +10,16 @@ import {
   validateIntegrationConnection,
   validateConfiguration,
   sanitizeConfiguration,
-  containsSecretValues,
+  containsSecretValues
 } from "@/lib/integrations/validation";
 import { getProviderByCode } from "@/lib/integrations/providers";
 import type { UserContext } from "@/types/context";
 
-async function validateSchoolExists(supabase: Awaited<ReturnType<typeof createClient>>, schoolId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("schools")
-    .select("id")
-    .eq("id", schoolId)
-    .maybeSingle();
+async function validateSchoolExists(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  schoolId: string
+): Promise<boolean> {
+  const { data } = await supabase.from("schools").select("id").eq("id", schoolId).maybeSingle();
   return !!data;
 }
 
@@ -35,22 +34,26 @@ export async function createIntegrationAction(formData: FormData) {
   // Validate provider exists
   const providerDefinition = getProviderByCode(provider);
   if (!providerDefinition) {
-    redirect(`/app/modules/integrations/new?error=${encodeURIComponent("Invalid provider selected.")}`);
+    redirect(
+      `/app/modules/integrations/new?error=${encodeURIComponent("Invalid provider selected.")}`
+    );
   }
 
   // Check if provider is implemented
   if (!providerDefinition.implemented) {
-    redirect(`/app/modules/integrations/new?error=${encodeURIComponent("This provider has not been implemented yet.")}`);
+    redirect(
+      `/app/modules/integrations/new?error=${encodeURIComponent("This provider has not been implemented yet.")}`
+    );
   }
 
   // Validate connection fields
   const validation = validateIntegrationConnection({
     name,
-    provider,
+    provider
   });
 
-  if (!validation.valid) {
-    const error = validation.errors.map((e) => `${e.field}: ${e.message}`).join("; ");
+  if (!validation.success) {
+    const error = validation.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
     redirect(`/app/modules/integrations/new?error=${encodeURIComponent(error)}`);
   }
 
@@ -60,18 +63,24 @@ export async function createIntegrationAction(formData: FormData) {
     try {
       configuration = JSON.parse(configurationRaw);
     } catch {
-      redirect(`/app/modules/integrations/new?error=${encodeURIComponent("Invalid configuration JSON.")}`);
+      redirect(
+        `/app/modules/integrations/new?error=${encodeURIComponent("Invalid configuration JSON.")}`
+      );
     }
 
     // Check for secret values in configuration
     if (containsSecretValues(configuration)) {
-      redirect(`/app/modules/integrations/new?error=${encodeURIComponent("Configuration must not contain secret values. Use secure credential storage instead.")}`);
+      redirect(
+        `/app/modules/integrations/new?error=${encodeURIComponent("Configuration must not contain secret values. Use secure credential storage instead.")}`
+      );
     }
 
     // Validate configuration schema
     const configValidation = validateConfiguration(provider, configuration);
     if (!configValidation.success) {
-      const error = configValidation.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; ");
+      const error = configValidation.error.issues
+        .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+        .join("; ");
       redirect(`/app/modules/integrations/new?error=${encodeURIComponent(error)}`);
     }
 
@@ -87,7 +96,9 @@ export async function createIntegrationAction(formData: FormData) {
     const supabase = await createClient();
     const schoolExists = await validateSchoolExists(supabase, targetSchoolId);
     if (!schoolExists) {
-      redirect(`/app/modules/integrations/new?error=${encodeURIComponent("Invalid school selected.")}`);
+      redirect(
+        `/app/modules/integrations/new?error=${encodeURIComponent("Invalid school selected.")}`
+      );
     }
   }
 
@@ -105,7 +116,7 @@ export async function createIntegrationAction(formData: FormData) {
       integration_type: integrationType,
       name,
       configuration,
-      status: "inactive",
+      status: "inactive"
     } as any)
     .select("id")
     .single() as any);
@@ -113,13 +124,17 @@ export async function createIntegrationAction(formData: FormData) {
   if (error) {
     if (error.code === "23505") {
       // Unique constraint violation
-      redirect(`/app/modules/integrations/new?error=${encodeURIComponent("An integration with this provider, type and name already exists in this scope.")}`);
+      redirect(
+        `/app/modules/integrations/new?error=${encodeURIComponent("An integration with this provider, type and name already exists in this scope.")}`
+      );
     }
     redirect(`/app/modules/integrations/new?error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/app/modules/integrations");
-  redirect(`/app/modules/integrations/${data.id}?message=${encodeURIComponent("Integration created. Configure credentials and test to activate.")}`);
+  redirect(
+    `/app/modules/integrations/${data.id}?message=${encodeURIComponent("Integration created. Configure credentials and test to activate.")}`
+  );
 }
 
 export async function updateIntegrationAction(connectionId: string, formData: FormData) {
@@ -139,7 +154,9 @@ export async function updateIntegrationAction(connectionId: string, formData: Fo
     .maybeSingle() as any);
 
   if (loadError || !existing) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`
+    );
   }
 
   // Verify caller can manage this connection's scope
@@ -149,8 +166,8 @@ export async function updateIntegrationAction(connectionId: string, formData: Fo
 
   // Validate name
   const validation = validateIntegrationConnection({ name, provider: (existing as any).provider });
-  if (!validation.valid) {
-    const error = validation.errors.map((e) => `${e.field}: ${e.message}`).join("; ");
+  if (!validation.success) {
+    const error = validation.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
     redirect(`/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent(error)}`);
   }
 
@@ -160,18 +177,24 @@ export async function updateIntegrationAction(connectionId: string, formData: Fo
     try {
       configuration = JSON.parse(configurationRaw);
     } catch {
-      redirect(`/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent("Invalid configuration JSON.")}`);
+      redirect(
+        `/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent("Invalid configuration JSON.")}`
+      );
     }
 
     // Check for secret values in configuration
     if (containsSecretValues(configuration)) {
-      redirect(`/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent("Configuration must not contain secret values.")}`);
+      redirect(
+        `/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent("Configuration must not contain secret values.")}`
+      );
     }
 
     // Validate configuration schema
     const configValidation = validateConfiguration((existing as any).provider, configuration);
     if (!configValidation.success) {
-      const error = configValidation.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; ");
+      const error = configValidation.error.issues
+        .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+        .join("; ");
       redirect(`/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent(error)}`);
     }
 
@@ -185,7 +208,7 @@ export async function updateIntegrationAction(connectionId: string, formData: Fo
     .update({
       name,
       configuration,
-      version: currentVersion + 1,
+      version: currentVersion + 1
     })
     .eq("id", connectionId)
     .eq("version", currentVersion)
@@ -194,17 +217,25 @@ export async function updateIntegrationAction(connectionId: string, formData: Fo
 
   if (error || !data) {
     if (error?.code === "PGRST116") {
-      redirect(`/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent("This integration was changed by another administrator. Refresh and try again.")}`);
+      redirect(
+        `/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent("This integration was changed by another administrator. Refresh and try again.")}`
+      );
     }
     if (error?.code === "23505") {
-      redirect(`/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent("An integration with this provider, type and name already exists in this scope.")}`);
+      redirect(
+        `/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent("An integration with this provider, type and name already exists in this scope.")}`
+      );
     }
-    redirect(`/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent(error?.message || "Update failed")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}/edit?error=${encodeURIComponent(error?.message || "Update failed")}`
+    );
   }
 
   revalidatePath("/app/modules/integrations");
   revalidatePath(`/app/modules/integrations/${connectionId}`);
-  redirect(`/app/modules/integrations/${connectionId}?message=${encodeURIComponent("Integration updated")}`);
+  redirect(
+    `/app/modules/integrations/${connectionId}?message=${encodeURIComponent("Integration updated")}`
+  );
 }
 
 export async function testIntegrationAction(connectionId: string) {
@@ -220,7 +251,9 @@ export async function testIntegrationAction(connectionId: string) {
     .maybeSingle() as any);
 
   if (loadError || !existing) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`
+    );
   }
 
   // Verify authorization
@@ -231,12 +264,16 @@ export async function testIntegrationAction(connectionId: string) {
   // Check if provider is implemented
   const providerDefinition = getProviderByCode((existing as any).provider);
   if (!providerDefinition || !providerDefinition.implemented) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("This provider has not been implemented yet.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("This provider has not been implemented yet.")}`
+    );
   }
 
   // Call the integration test RPC (to be implemented)
   // For now, return a placeholder error
-  redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration testing not yet implemented. No provider adapter exists.")}`);
+  redirect(
+    `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration testing not yet implemented. No provider adapter exists.")}`
+  );
 }
 
 export async function activateIntegrationAction(formData: FormData) {
@@ -253,12 +290,21 @@ export async function activateIntegrationAction(formData: FormData) {
     .maybeSingle() as any);
 
   if (loadError || !existing) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`
+    );
   }
 
   // Verify authorization
   if (!canManageIntegration(context, (existing as any)?.school_id)) {
     redirect("/access-denied");
+  }
+
+  const providerDefinition = getProviderByCode((existing as any).provider);
+  if (!providerDefinition?.implemented) {
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("This provider is unavailable because its processing adapter and credential loader are not implemented.")}`
+    );
   }
 
   // Update to active
@@ -268,12 +314,16 @@ export async function activateIntegrationAction(formData: FormData) {
     .eq("id", connectionId);
 
   if (error) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent(error.message)}`
+    );
   }
 
   revalidatePath("/app/modules/integrations");
   revalidatePath(`/app/modules/integrations/${connectionId}`);
-  redirect(`/app/modules/integrations/${connectionId}?message=${encodeURIComponent("Integration activated")}`);
+  redirect(
+    `/app/modules/integrations/${connectionId}?message=${encodeURIComponent("Integration activated")}`
+  );
 }
 
 export async function disableIntegrationAction(formData: FormData) {
@@ -290,7 +340,9 @@ export async function disableIntegrationAction(formData: FormData) {
     .maybeSingle() as any);
 
   if (loadError || !existing) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`
+    );
   }
 
   // Verify authorization
@@ -305,12 +357,16 @@ export async function disableIntegrationAction(formData: FormData) {
     .eq("id", connectionId);
 
   if (error) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent(error.message)}`
+    );
   }
 
   revalidatePath("/app/modules/integrations");
   revalidatePath(`/app/modules/integrations/${connectionId}`);
-  redirect(`/app/modules/integrations/${connectionId}?message=${encodeURIComponent("Integration disabled")}`);
+  redirect(
+    `/app/modules/integrations/${connectionId}?message=${encodeURIComponent("Integration disabled")}`
+  );
 }
 
 export async function reconnectIntegrationAction(formData: FormData) {
@@ -327,7 +383,9 @@ export async function reconnectIntegrationAction(formData: FormData) {
     .maybeSingle() as any);
 
   if (loadError || !existing) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`
+    );
   }
 
   // Verify authorization
@@ -337,16 +395,22 @@ export async function reconnectIntegrationAction(formData: FormData) {
 
   // Check if provider supports OAuth
   const providerDefinition = getProviderByCode((existing as any).provider);
-  if (!providerDefinition) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Invalid provider.")}`);
+  if (!providerDefinition?.implemented) {
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Invalid provider.")}`
+    );
   }
 
   if (providerDefinition.supportsOAuth) {
     // Redirect to OAuth flow (to be implemented)
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("OAuth reconnection not yet implemented.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("OAuth reconnection not yet implemented.")}`
+    );
   } else {
     // For non-OAuth providers, prompt for credential rotation
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Credential rotation not yet implemented.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Credential rotation not yet implemented.")}`
+    );
   }
 }
 
@@ -364,7 +428,9 @@ export async function requestIntegrationSyncAction(formData: FormData) {
     .maybeSingle() as any);
 
   if (loadError || !existing) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`
+    );
   }
 
   // Verify authorization
@@ -374,38 +440,45 @@ export async function requestIntegrationSyncAction(formData: FormData) {
 
   // Check if provider supports outbound events
   const providerDefinition = getProviderByCode((existing as any).provider);
-  if (!providerDefinition || !providerDefinition.supportsOutbound) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("This provider does not support synchronization.")}`);
+  if (!providerDefinition?.implemented || !providerDefinition.supportsOutbound) {
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("This provider does not support synchronization.")}`
+    );
   }
 
   // Enqueue a sync event
-  const { error } = await (supabase
-    .from("integration_events")
-    .insert({
-      school_id: (existing as any).school_id,
-      integration_connection_id: connectionId,
-      event_type: "integration.sync_requested",
-      direction: "outbound",
-      status: "queued",
-      payload: {
-        requested_by: context.user_id,
-        mode: "incremental",
-      },
-      idempotency_key: `sync:${connectionId}:${Date.now()}`,
-    } as any) as any);
+  const { error } = await (supabase.from("integration_events").insert({
+    school_id: (existing as any).school_id,
+    integration_connection_id: connectionId,
+    event_type: "integration.sync_requested",
+    direction: "outbound",
+    status: "queued",
+    payload: {
+      requested_by: context.user_id,
+      mode: "incremental"
+    },
+    idempotency_key: `sync:${connectionId}:${Date.now()}`
+  } as any) as any);
 
   if (error) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent(error.message)}`
+    );
   }
 
   revalidatePath("/app/modules/integrations");
   revalidatePath(`/app/modules/integrations/${connectionId}`);
-  redirect(`/app/modules/integrations/${connectionId}?message=${encodeURIComponent("Sync request queued")}`);
+  redirect(
+    `/app/modules/integrations/${connectionId}?message=${encodeURIComponent("Sync request queued")}`
+  );
 }
 
 export async function retryIntegrationEventAction(formData: FormData) {
   const context = await requireUserContext("settings.manage");
-  const eventId = formData.get("eventId") as string;
+  const eventId = Number(formData.get("eventId"));
+  if (!Number.isSafeInteger(eventId) || eventId <= 0) {
+    redirect(`/app/modules/integrations?error=${encodeURIComponent("Invalid event ID.")}`);
+  }
 
   const supabase = await createClient();
 
@@ -428,7 +501,9 @@ export async function retryIntegrationEventAction(formData: FormData) {
     .maybeSingle() as any);
 
   if (connectionError || !connection) {
-    redirect(`/app/modules/integrations?error=${encodeURIComponent("Associated integration not found.")}`);
+    redirect(
+      `/app/modules/integrations?error=${encodeURIComponent("Associated integration not found.")}`
+    );
   }
 
   // Verify authorization
@@ -438,7 +513,9 @@ export async function retryIntegrationEventAction(formData: FormData) {
 
   // Verify connection is active
   if ((connection as any).status !== "active") {
-    redirect(`/app/modules/integrations?error=${encodeURIComponent("Integration must be active to retry events.")}`);
+    redirect(
+      `/app/modules/integrations?error=${encodeURIComponent("Integration must be active to retry events.")}`
+    );
   }
 
   // Update event for retry
@@ -447,7 +524,7 @@ export async function retryIntegrationEventAction(formData: FormData) {
     .update({
       status: "queued",
       next_retry_at: new Date().toISOString(),
-      error_message: null,
+      error_message: null
     })
     .eq("id", eventId);
 
@@ -466,7 +543,9 @@ export async function deleteIntegrationAction(formData: FormData) {
   // Only platform super admins can permanently delete
   const isSuperAdmin = context.platform_roles.some((r) => r.code === "super_admin");
   if (!isSuperAdmin) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Only platform super administrators may permanently delete integrations. Use Disable instead.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Only platform super administrators may permanently delete integrations. Use Disable instead.")}`
+    );
   }
 
   const supabase = await createClient();
@@ -479,7 +558,9 @@ export async function deleteIntegrationAction(formData: FormData) {
     .maybeSingle() as any);
 
   if (loadError || !existing) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent("Integration not found.")}`
+    );
   }
 
   // Delete the connection (integration_events will have connection_id set to NULL via ON DELETE SET NULL)
@@ -489,9 +570,13 @@ export async function deleteIntegrationAction(formData: FormData) {
     .eq("id", connectionId) as any);
 
   if (error) {
-    redirect(`/app/modules/integrations/${connectionId}?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `/app/modules/integrations/${connectionId}?error=${encodeURIComponent(error.message)}`
+    );
   }
 
   revalidatePath("/app/modules/integrations");
-  redirect(`/app/modules/integrations?message=${encodeURIComponent("Integration permanently deleted")}`);
+  redirect(
+    `/app/modules/integrations?message=${encodeURIComponent("Integration permanently deleted")}`
+  );
 }

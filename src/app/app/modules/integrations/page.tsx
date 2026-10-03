@@ -32,9 +32,10 @@ export default async function IntegrationsPage({
   let query = supabase
     .from("integration_connections")
     .select(`
-      *,
+      id,school_id,provider,integration_type,name,status,last_connected_at,last_error,created_at,
       schools(name)
-    `);
+    `)
+    .limit(50);
 
   // Apply scope filter
   if (scopeFilter.school_id === null) {

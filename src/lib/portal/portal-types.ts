@@ -55,6 +55,19 @@ export type EmployeePortalData = {
     startsAt: string;
     endsAt: string;
   }>;
+  assignedClasses?: Array<{
+    id: string;
+    classSection: string;
+    classGroup?: string;
+    subject?: string;
+    isPrimary: boolean;
+  }>;
+  assignedSubjects?: Array<{
+    id: string;
+    subject: string;
+    classCount: number;
+  }>;
+  studentCount?: number;
   leaveRequests?: Array<{
     id: string;
     leaveType: string;

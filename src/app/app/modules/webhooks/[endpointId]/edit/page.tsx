@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { WebhookForm } from "@/components/webhooks/webhook-form";
 
 export default async function WebhookEditPage({
-  params,
+  params
 }: {
   params: Promise<{ endpointId: string }>;
 }) {
@@ -16,7 +16,7 @@ export default async function WebhookEditPage({
   // Load endpoint with RLS
   const { data: endpoint, error } = await (supabase
     .from("webhook_endpoints")
-    .select("*")
+    .select("id,school_id,name,url,event_types,status,secret_reference,version")
     .eq("id", endpointId)
     .maybeSingle() as any);
 
@@ -25,11 +25,12 @@ export default async function WebhookEditPage({
   }
 
   // Verify authorization
-  if ((endpoint as any)?.school_id === null && !context.is_platform_admin) {
-    redirect("/access-denied");
-  }
-
-  if ((endpoint as any)?.school_id && (endpoint as any)?.school_id !== context.active_school_id && !context.is_platform_admin) {
+  if (
+    ((endpoint as any).school_id === null && !context.is_platform_admin) ||
+    ((endpoint as any).school_id !== null &&
+      context.active_school_id !== null &&
+      (endpoint as any).school_id !== context.active_school_id)
+  ) {
     redirect("/access-denied");
   }
 

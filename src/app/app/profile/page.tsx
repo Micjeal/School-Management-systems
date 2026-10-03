@@ -1,2 +1,87 @@
-import { PageHeader } from "@/components/layout/page-header";import { Card,CardContent } from "@/components/ui/card";import { Input,Label } from "@/components/ui/input";import { Button } from "@/components/ui/button";import { requireUserContext } from "@/lib/auth/context";import { updateProfile } from "./actions";
-export default async function Profile({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){const c=await requireUserContext();const p=await searchParams;return <div><PageHeader title="Profile settings" description="Your name, contact details and regional preferences."/>{p.message?<p className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{p.message}</p>:null}{p.error?<p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{p.error}</p>:null}<Card><CardContent><form action={updateProfile} className="grid gap-5 sm:grid-cols-2"><div className="sm:col-span-2"><Label>Display name</Label><Input name="display_name" defaultValue={c.profile.display_name??""}/></div><div><Label>First name</Label><Input name="first_name" defaultValue={c.profile.first_name??""}/></div><div><Label>Last name</Label><Input name="last_name" defaultValue={c.profile.last_name??""}/></div><div><Label>Phone</Label><Input name="phone" defaultValue={(c.profile as any).phone??""}/></div><div><Label>Timezone</Label><Input name="timezone" defaultValue={(c.profile as any).timezone??"Africa/Kampala"}/></div><div className="sm:col-span-2 flex justify-end"><Button>Save profile</Button></div></form></CardContent></Card></div>}
+import { PageHeader } from "@/components/layout/page-header";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input, Label } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { requireUserContext } from "@/lib/auth/context";
+import { updateProfile } from "./actions";
+export default async function Profile({
+  searchParams
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const c = await requireUserContext();
+  const p = await searchParams;
+  const membership = c.memberships.find((m) => m.school_id === c.active_school_id);
+  const isStudent = membership?.roles.some((role) => role.code === "student") ?? false;
+  return (
+    <div>
+      <PageHeader
+        title="Profile settings"
+        description={
+          isStudent
+            ? "Your school-approved contact details."
+            : "Your name, contact details and regional preferences."
+        }
+      />
+      {p.message ? (
+        <p className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{p.message}</p>
+      ) : null}
+      {p.error ? (
+        <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{p.error}</p>
+      ) : null}
+      <Card>
+        <CardContent>
+          <form action={updateProfile} className="grid gap-5 sm:grid-cols-2">
+            {isStudent ? (
+              <>
+                <div className="sm:col-span-2">
+                  <Label>Display name</Label>
+                  <Input value={c.profile.display_name ?? ""} readOnly />
+                </div>
+                <div>
+                  <Label>First name</Label>
+                  <Input value={c.profile.first_name ?? ""} readOnly />
+                </div>
+                <div>
+                  <Label>Last name</Label>
+                  <Input value={c.profile.last_name ?? ""} readOnly />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="sm:col-span-2">
+                  <Label>Display name</Label>
+                  <Input name="display_name" defaultValue={c.profile.display_name ?? ""} />
+                </div>
+                <div>
+                  <Label>First name</Label>
+                  <Input name="first_name" defaultValue={c.profile.first_name ?? ""} />
+                </div>
+                <div>
+                  <Label>Last name</Label>
+                  <Input name="last_name" defaultValue={c.profile.last_name ?? ""} />
+                </div>
+              </>
+            )}
+            <div>
+              <Label>Phone</Label>
+              <Input name="phone" defaultValue={(c.profile as any).phone ?? ""} />
+            </div>
+            {!isStudent ? (
+              <div>
+                <Label>Timezone</Label>
+                <Input
+                  name="timezone"
+                  defaultValue={(c.profile as any).timezone ?? "Africa/Kampala"}
+                />
+              </div>
+            ) : null}
+            <div className="sm:col-span-2 flex justify-end">
+              <Button>Save profile</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

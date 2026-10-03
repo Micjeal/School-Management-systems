@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserContext } from "@/lib/auth/context";
+import { requireSchoolRecord } from "@/lib/access/records";
 
 export async function processImportBatch(formData: FormData) {
-  const context = await requireUserContext("settings.manage");
+  const context = await requireUserContext("imports.process");
   const supabase = await createClient();
   
   const batchId = formData.get("batch_id") as string;
@@ -13,6 +14,7 @@ export async function processImportBatch(formData: FormData) {
   if (!batchId) {
     redirect("/app/system/imports?error=Invalid request");
   }
+  await requireSchoolRecord(supabase, "import_batches", batchId, context.active_school_id);
 
   const { error } = await supabase.rpc("process_import_batch" as any, {
     target_import_batch_id: batchId,

@@ -5,13 +5,23 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserContext } from "@/lib/auth/context";
-import { validateWebhookEndpoint, validateWebhookURL, validateWebhookStatus } from "@/lib/webhooks/validation";
+import {
+  validateWebhookEndpoint,
+  validateWebhookURL,
+  validateWebhookStatus
+} from "@/lib/webhooks/validation";
 import { isValidEventType } from "@/lib/webhooks/event-types";
 import type { UserContext } from "@/types/context";
 
+function canManageEndpointScope(context: UserContext, schoolId: string | null): boolean {
+  if (schoolId === null) return context.is_platform_admin;
+  if (context.active_school_id) return schoolId === context.active_school_id;
+  return context.is_platform_admin;
+}
+
 function resolveTargetSchoolId(
   context: UserContext,
-  requestedSchoolId: string | null,
+  requestedSchoolId: string | null
 ): string | null {
   if (!context.is_platform_admin) {
     if (!context.active_school_id) {
@@ -27,22 +37,21 @@ function resolveTargetSchoolId(
   return requestedSchoolId;
 }
 
-async function validateSchoolExists(supabase: Awaited<ReturnType<typeof createClient>>, schoolId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("schools")
-    .select("id")
-    .eq("id", schoolId)
-    .maybeSingle();
+async function validateSchoolExists(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  schoolId: string
+): Promise<boolean> {
+  const { data } = await supabase.from("schools").select("id").eq("id", schoolId).maybeSingle();
   return !!data;
 }
 
 export async function createWebhookEndpointAction(formData: FormData) {
   const context = await requireUserContext("settings.manage");
-  
+
   const name = formData.get("name") as string;
   const url = formData.get("url") as string;
   const eventTypes = formData.getAll("event_types") as string[];
-  const status = formData.get("status") as string || "active";
+  const status = (formData.get("status") as string) || "active";
   const requestedSchoolId = formData.get("school_id") as string | null;
   const secretReference = formData.get("secret_reference") as string | null;
 
@@ -55,7 +64,7 @@ export async function createWebhookEndpointAction(formData: FormData) {
     url,
     event_types: eventTypes,
     status,
-    secret_reference: approvedSecretReference,
+    secret_reference: approvedSecretReference
   });
 
   if (!validation.valid) {
@@ -86,7 +95,7 @@ export async function createWebhookEndpointAction(formData: FormData) {
       url,
       event_types: eventTypes,
       secret_reference: approvedSecretReference,
-      status,
+      status
     } as any)
     .select("id")
     .single() as any);
@@ -96,12 +105,14 @@ export async function createWebhookEndpointAction(formData: FormData) {
   }
 
   revalidatePath("/app/modules/webhooks");
-  redirect(`/app/modules/webhooks/${data.id}?message=${encodeURIComponent("Webhook endpoint created")}`);
+  redirect(
+    `/app/modules/webhooks/${data.id}?message=${encodeURIComponent("Webhook endpoint created")}`
+  );
 }
 
 export async function updateWebhookEndpointAction(endpointId: string, formData: FormData) {
   const context = await requireUserContext("settings.manage");
-  
+
   const name = formData.get("name") as string;
   const url = formData.get("url") as string;
   const eventTypes = formData.getAll("event_types") as string[];
@@ -118,7 +129,7 @@ export async function updateWebhookEndpointAction(endpointId: string, formData: 
     url,
     event_types: eventTypes,
     status,
-    secret_reference: approvedSecretReference,
+    secret_reference: approvedSecretReference
   });
 
   if (!validation.valid) {
@@ -131,7 +142,7 @@ export async function updateWebhookEndpointAction(endpointId: string, formData: 
   // Load existing endpoint to verify authorization
   const { data: existing, error: loadError } = await (supabase
     .from("webhook_endpoints")
-    .select("*")
+    .select("id,school_id,version")
     .eq("id", endpointId)
     .maybeSingle() as any);
 
@@ -140,11 +151,7 @@ export async function updateWebhookEndpointAction(endpointId: string, formData: 
   }
 
   // Verify caller can manage this endpoint's scope
-  if ((existing as any)?.school_id === null && !context.is_platform_admin) {
-    redirect("/access-denied");
-  }
-
-  if ((existing as any)?.school_id && (existing as any)?.school_id !== context.active_school_id && !context.is_platform_admin) {
+  if (!canManageEndpointScope(context, existing.school_id)) {
     redirect("/access-denied");
   }
 
@@ -157,7 +164,7 @@ export async function updateWebhookEndpointAction(endpointId: string, formData: 
       event_types: eventTypes,
       status,
       secret_reference: approvedSecretReference,
-      version: currentVersion + 1,
+      version: currentVersion + 1
     })
     .eq("id", endpointId)
     .eq("version", currentVersion)
@@ -167,26 +174,32 @@ export async function updateWebhookEndpointAction(endpointId: string, formData: 
   if (error || !data) {
     if (error?.code === "PGRST116") {
       // No row returned - version mismatch or endpoint changed
-      redirect(`/app/modules/webhooks/${endpointId}?error=${encodeURIComponent("This webhook was changed by another user. Refresh and try again.")}`);
+      redirect(
+        `/app/modules/webhooks/${endpointId}?error=${encodeURIComponent("This webhook was changed by another user. Refresh and try again.")}`
+      );
     }
-    redirect(`/app/modules/webhooks/${endpointId}?error=${encodeURIComponent(error?.message || "Update failed")}`);
+    redirect(
+      `/app/modules/webhooks/${endpointId}?error=${encodeURIComponent(error?.message || "Update failed")}`
+    );
   }
 
   revalidatePath("/app/modules/webhooks");
   revalidatePath(`/app/modules/webhooks/${endpointId}`);
-  redirect(`/app/modules/webhooks/${endpointId}?message=${encodeURIComponent("Webhook endpoint updated")}`);
+  redirect(
+    `/app/modules/webhooks/${endpointId}?message=${encodeURIComponent("Webhook endpoint updated")}`
+  );
 }
 
 export async function pauseWebhookEndpointAction(formData: FormData) {
   const context = await requireUserContext("settings.manage");
   const endpointId = formData.get("endpointId") as string;
-  
+
   const supabase = await createClient();
 
   // Load existing endpoint
   const { data: existing, error: loadError } = await (supabase
     .from("webhook_endpoints")
-    .select("*")
+    .select("id,school_id,status")
     .eq("id", endpointId)
     .maybeSingle() as any);
 
@@ -195,11 +208,7 @@ export async function pauseWebhookEndpointAction(formData: FormData) {
   }
 
   // Verify authorization
-  if ((existing as any)?.school_id === null && !context.is_platform_admin) {
-    redirect("/access-denied");
-  }
-
-  if ((existing as any)?.school_id && (existing as any)?.school_id !== context.active_school_id && !context.is_platform_admin) {
+  if (!canManageEndpointScope(context, existing.school_id)) {
     redirect("/access-denied");
   }
 
@@ -215,19 +224,21 @@ export async function pauseWebhookEndpointAction(formData: FormData) {
 
   revalidatePath("/app/modules/webhooks");
   revalidatePath(`/app/modules/webhooks/${endpointId}`);
-  redirect(`/app/modules/webhooks/${endpointId}?message=${encodeURIComponent("Webhook endpoint paused")}`);
+  redirect(
+    `/app/modules/webhooks/${endpointId}?message=${encodeURIComponent("Webhook endpoint paused")}`
+  );
 }
 
 export async function resumeWebhookEndpointAction(formData: FormData) {
   const context = await requireUserContext("settings.manage");
   const endpointId = formData.get("endpointId") as string;
-  
+
   const supabase = await createClient();
 
   // Load existing endpoint
   const { data: existing, error: loadError } = await (supabase
     .from("webhook_endpoints")
-    .select("*")
+    .select("id,school_id,status")
     .eq("id", endpointId)
     .maybeSingle() as any);
 
@@ -236,11 +247,7 @@ export async function resumeWebhookEndpointAction(formData: FormData) {
   }
 
   // Verify authorization
-  if ((existing as any)?.school_id === null && !context.is_platform_admin) {
-    redirect("/access-denied");
-  }
-
-  if ((existing as any)?.school_id && (existing as any)?.school_id !== context.active_school_id && !context.is_platform_admin) {
+  if (!canManageEndpointScope(context, existing.school_id)) {
     redirect("/access-denied");
   }
 
@@ -256,19 +263,21 @@ export async function resumeWebhookEndpointAction(formData: FormData) {
 
   revalidatePath("/app/modules/webhooks");
   revalidatePath(`/app/modules/webhooks/${endpointId}`);
-  redirect(`/app/modules/webhooks/${endpointId}?message=${encodeURIComponent("Webhook endpoint resumed")}`);
+  redirect(
+    `/app/modules/webhooks/${endpointId}?message=${encodeURIComponent("Webhook endpoint resumed")}`
+  );
 }
 
 export async function disableWebhookEndpointAction(formData: FormData) {
   const context = await requireUserContext("settings.manage");
   const endpointId = formData.get("endpointId") as string;
-  
+
   const supabase = await createClient();
 
   // Load existing endpoint
   const { data: existing, error: loadError } = await (supabase
     .from("webhook_endpoints")
-    .select("*")
+    .select("id,school_id,status")
     .eq("id", endpointId)
     .maybeSingle() as any);
 
@@ -277,11 +286,7 @@ export async function disableWebhookEndpointAction(formData: FormData) {
   }
 
   // Verify authorization
-  if ((existing as any)?.school_id === null && !context.is_platform_admin) {
-    redirect("/access-denied");
-  }
-
-  if ((existing as any)?.school_id && (existing as any)?.school_id !== context.active_school_id && !context.is_platform_admin) {
+  if (!canManageEndpointScope(context, existing.school_id)) {
     redirect("/access-denied");
   }
 
@@ -297,25 +302,29 @@ export async function disableWebhookEndpointAction(formData: FormData) {
 
   revalidatePath("/app/modules/webhooks");
   revalidatePath(`/app/modules/webhooks/${endpointId}`);
-  redirect(`/app/modules/webhooks/${endpointId}?message=${encodeURIComponent("Webhook endpoint disabled")}`);
+  redirect(
+    `/app/modules/webhooks/${endpointId}?message=${encodeURIComponent("Webhook endpoint disabled")}`
+  );
 }
 
 export async function deleteWebhookEndpointAction(formData: FormData) {
   const context = await requireUserContext("settings.manage");
   const endpointId = formData.get("endpointId") as string;
-  
+
   // Only platform super admins can permanently delete
   const isSuperAdmin = context.platform_roles.some((r) => r.code === "super_admin");
   if (!isSuperAdmin) {
-    redirect(`/app/modules/webhooks/${endpointId}?error=${encodeURIComponent("Only platform super administrators may permanently delete webhooks. Use Pause or Disable instead.")}`);
+    redirect(
+      `/app/modules/webhooks/${endpointId}?error=${encodeURIComponent("Only platform super administrators may permanently delete webhooks. Use Pause or Disable instead.")}`
+    );
   }
-  
+
   const supabase = await createClient();
 
   // Load existing endpoint
   const { data: existing, error: loadError } = await (supabase
     .from("webhook_endpoints")
-    .select("*")
+    .select("id,school_id")
     .eq("id", endpointId)
     .maybeSingle() as any);
 
@@ -324,49 +333,47 @@ export async function deleteWebhookEndpointAction(formData: FormData) {
   }
 
   // Delete the endpoint (cascades to webhook_deliveries)
-  const { error } = await (supabase
-    .from("webhook_endpoints")
-    .delete()
-    .eq("id", endpointId) as any);
+  const { error } = await (supabase.from("webhook_endpoints").delete().eq("id", endpointId) as any);
 
   if (error) {
     redirect(`/app/modules/webhooks/${endpointId}?error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/app/modules/webhooks");
-  redirect(`/app/modules/webhooks?message=${encodeURIComponent("Webhook endpoint permanently deleted")}`);
+  redirect(
+    `/app/modules/webhooks?message=${encodeURIComponent("Webhook endpoint permanently deleted")}`
+  );
 }
 
-export async function testWebhookEndpointAction(endpointId: string) {
+export async function testWebhookEndpointAction(formData: FormData) {
   const context = await requireUserContext("settings.manage");
-  
+  const endpointId = String(formData.get("endpointId") ?? "").trim();
+
   const supabase = await createClient();
 
   // Load existing endpoint
   const { data: existing, error: loadError } = await (supabase
     .from("webhook_endpoints")
-    .select("*")
+    .select("id,school_id,status")
     .eq("id", endpointId)
     .maybeSingle() as any);
 
   if (loadError || !existing) {
-    redirect(`/app/modules/webhooks/${endpointId}?error=${encodeURIComponent("Webhook endpoint not found.")}`);
+    redirect(
+      `/app/modules/webhooks/${endpointId}?error=${encodeURIComponent("Webhook endpoint not found.")}`
+    );
   }
 
   // Verify authorization
-  if ((existing as any)?.school_id === null && !context.is_platform_admin) {
-    redirect("/access-denied");
-  }
-
-  if ((existing as any)?.school_id && (existing as any)?.school_id !== context.active_school_id && !context.is_platform_admin) {
+  if (!canManageEndpointScope(context, existing.school_id)) {
     redirect("/access-denied");
   }
 
   // Call the webhook worker's test endpoint via RPC
   // This is a controlled server-side operation, not a direct browser fetch
-  const { data, error } = await (supabase.rpc("test_webhook_endpoint", {
-    p_endpoint_id: endpointId,
-  } as any) as any);
+  const { data, error } = await (supabase.rpc as any)("test_webhook_endpoint", {
+    p_endpoint_id: endpointId
+  });
 
   if (error) {
     redirect(`/app/modules/webhooks/${endpointId}?error=${encodeURIComponent(error.message)}`);
@@ -374,10 +381,10 @@ export async function testWebhookEndpointAction(endpointId: string) {
 
   revalidatePath("/app/modules/webhooks");
   revalidatePath(`/app/modules/webhooks/${endpointId}`);
-  
-  const successMessage = (data as any)?.success 
-    ? "Test webhook sent successfully" 
+
+  const successMessage = (data as any)?.success
+    ? "Test webhook sent successfully"
     : "Test webhook failed";
-  
+
   redirect(`/app/modules/webhooks/${endpointId}?message=${encodeURIComponent(successMessage)}`);
 }

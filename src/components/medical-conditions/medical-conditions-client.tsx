@@ -117,7 +117,7 @@ export function MedicalConditionsClient({
           )}
           {!isPlatformView && initialContext.active_school && (
             <p className="text-sm text-muted-foreground mt-2">
-              Global and {initialContext.active_school.school_name} catalogue entries
+              Global and {String(initialContext.active_school.school_name ?? "")} catalogue entries
             </p>
           )}
         </div>

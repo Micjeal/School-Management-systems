@@ -7,9 +7,8 @@ import type { MedicalConditionWithUsage } from "@/lib/medical-conditions/types";
 
 async function MedicalConditionsContent() {
   const context = await requireUserContext("health.manage");
-  const schools = await getSchoolsForSelector(500);
-
   const isPlatformView = context.is_platform_admin && !context.active_school_id;
+  const schools = context.is_platform_admin ? await getSchoolsForSelector(100) : [];
 
   let conditions: MedicalConditionWithUsage[] = [];
 
@@ -22,7 +21,7 @@ async function MedicalConditionsContent() {
       school_id: context.active_school_id
     });
   } else {
-    conditions = await getMedicalConditionsWithUsage({ scope: "all" });
+    conditions = [];
   }
 
   return (

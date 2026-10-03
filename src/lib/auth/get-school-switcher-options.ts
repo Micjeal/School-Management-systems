@@ -7,6 +7,7 @@ export type SchoolSwitcherOption = {
   school_id: string;
   school_name: string;
   school_slug: string;
+  school_code?: string | null;
   school_status: string;
   subscription_status: string;
 };
@@ -15,6 +16,7 @@ type SchoolRow = {
   id: string;
   name: string;
   slug: string;
+  code?: string | null;
   status: string;
   subscription_status: string;
 };
@@ -72,6 +74,7 @@ export async function getSchoolSwitcherOptions(
 
         school_slug:
           membership.school_slug,
+        school_code: null,
 
         school_status:
           membership.school_status,
@@ -104,11 +107,12 @@ export async function getSchoolSwitcherOptions(
         "id",
         "name",
         "slug",
+        "code",
         "status",
         "subscription_status",
       ].join(","),
     )
-    .neq("status", "archived")
+    .eq("status", "active")
     .order("name", {
       ascending: true,
     });
@@ -140,6 +144,7 @@ export async function getSchoolSwitcherOptions(
     school_id: school.id,
     school_name: school.name,
     school_slug: school.slug,
+    school_code: school.code ?? null,
     school_status: school.status,
     subscription_status:
       school.subscription_status,

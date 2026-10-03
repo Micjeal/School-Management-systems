@@ -6,36 +6,43 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { publishTimetableVersion } from "@/app/app/academics/timetable/actions";
+import { isUuid } from "@/lib/auth/access-errors";
 
 export default async function TimetableDetailPage({
-  params,
+  params
 }: {
   params: Promise<{ versionId: string }>;
 }) {
   const { versionId } = await params;
+  if (!isUuid(versionId)) notFound();
   const context = await requireUserContext("academics.manage");
+  if (!context.active_school_id) notFound();
   const supabase = await createClient();
-  
+
   const { data: version } = await (supabase.from("timetable_versions") as any)
-    .select("*,academic_years(name),terms(name)")
+    .select("id,name,status,published_at,academic_years(name),terms(name)")
     .eq("id", versionId)
     .eq("school_id", context.active_school_id)
     .single();
-    
+
   if (!version) notFound();
 
-  const { data: conflicts } = await supabase.rpc("check_timetable_conflicts" as any, {
-    target_timetable_version_id: versionId,
-  } as any) as any;
+  const { data: conflicts } = (await supabase.rpc(
+    "check_timetable_conflicts" as any,
+    {
+      target_timetable_version_id: versionId
+    } as any
+  )) as any;
 
   const { data: entries } = await (supabase.from("timetable_entries") as any)
-    .select("*,class_sections(name,code),rooms(name),teachers(people(first_name,last_name))")
+    .select("id,weekday,starts_at,ends_at,class_sections(name,code),rooms(name),teachers(people(first_name,last_name))")
     .eq("timetable_version_id", versionId)
+    .eq("school_id", context.active_school_id)
     .order("weekday,starts_at");
 
   return (
     <div>
-      <PageHeader 
+      <PageHeader
         title={version.name}
         description={`${version.academic_years?.name} - ${version.terms?.name || "All year"}`}
         backHref="/app/academics/timetable"
@@ -52,11 +59,14 @@ export default async function TimetableDetailPage({
             <div className="space-y-4">
               {conflicts && conflicts.length > 0 && (
                 <div className="rounded-lg bg-red-50 p-4">
-                  <p className="font-medium text-red-900">Conflicts detected ({conflicts.length})</p>
+                  <p className="font-medium text-red-900">
+                    Conflicts detected ({conflicts.length})
+                  </p>
                   <ul className="mt-2 space-y-1 text-sm text-red-800">
                     {conflicts.slice(0, 5).map((c: any, i: number) => (
                       <li key={i}>
-                        {c.conflict_type} conflict between entries {c.entry_id} and {c.conflicting_entry_id}
+                        {c.conflict_type} conflict between entries {c.entry_id} and{" "}
+                        {c.conflicting_entry_id}
                       </li>
                     ))}
                     {conflicts.length > 5 && <li>...and {conflicts.length - 5} more</li>}
@@ -65,8 +75,8 @@ export default async function TimetableDetailPage({
               )}
               <form action={publishTimetableVersion}>
                 <input type="hidden" name="version_id" value={versionId} />
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={conflicts && conflicts.length > 0}
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
@@ -87,9 +97,7 @@ export default async function TimetableDetailPage({
         <CardHeader>
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Timetable Entries</h2>
-            {version.status === "draft" && (
-              <Button size="sm">Add Entry</Button>
-            )}
+            {version.status === "draft" && <Button size="sm">Add Entry</Button>}
           </div>
         </CardHeader>
         <CardContent>
@@ -107,7 +115,9 @@ export default async function TimetableDetailPage({
                   </div>
                   <div className="text-right text-sm">
                     <p>{entry.rooms?.name || "No room"}</p>
-                    <p className="text-slate-500">{entry.teachers?.people?.first_name} {entry.teachers?.people?.last_name}</p>
+                    <p className="text-slate-500">
+                      {entry.teachers?.people?.first_name} {entry.teachers?.people?.last_name}
+                    </p>
                   </div>
                 </div>
               ))}

@@ -11,53 +11,58 @@ import { ArrowLeft, Copy, CheckCircle } from "lucide-react";
 import { validateEventId } from "@/lib/integration-events/validation";
 import { getScopeLabel } from "@/lib/integration-events/filters";
 import type { IntegrationEventWithConnection } from "@/lib/integration-events/types";
+import { redactPayload } from "@/lib/integration-events/redact-payload";
 
 export default async function IntegrationEventDetailPage({
   params,
-  searchParams,
+  searchParams
 }: {
-  params: { eventId: string };
-  searchParams: { message?: string; error?: string };
+  params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ message?: string; error?: string }>;
 }) {
+  const [{ eventId: eventIdParam }, query] = await Promise.all([params, searchParams]);
   const context = await requireUserContext("settings.manage");
   const supabase = await createClient();
 
   // Validate event ID
-  const eventId = validateEventId(params.eventId);
-
-  // Load the event with connection and school info
-  const { data: event, error: eventError } = await (supabase
-    .from("integration_events")
-    .select(`
-      *,
-      integration_connections!left(name, provider, status, last_connected_at, last_error),
-      schools!left(name)
-    `)
-    .eq("id", eventId)
-    .maybeSingle() as any);
-
-  if (eventError || !event) {
+  let eventId: number;
+  try {
+    eventId = validateEventId(eventIdParam);
+  } catch {
     notFound();
   }
 
-  // Verify scope access
-  if (event.school_id === null && !context.is_platform_admin) {
-    redirect("/access-denied");
-  }
+  // Load the event with connection and school info
+  let eventQuery = supabase
+    .from("integration_events")
+    .select(
+      `
+      id,school_id,integration_connection_id,provider_event_id,event_type,direction,status,payload,payload_hash,idempotency_key,retry_count,next_retry_at,processed_at,error_message,received_at,
+      integration_connections!left(name, provider, status, last_connected_at, last_error),
+      schools!left(name)
+    `
+    )
+    .eq("id", eventId);
+  eventQuery = context.active_school_id
+    ? eventQuery.eq("school_id", context.active_school_id)
+    : eventQuery.is("school_id", null);
+  const { data: event, error: eventError } = await (eventQuery.maybeSingle() as any);
 
-  if (event.school_id !== null && event.school_id !== context.active_school_id) {
-    redirect("/access-denied");
+  if (eventError || !event) {
+    notFound();
   }
 
   const scopeLabel = getScopeLabel(event.school_id, event.schools?.name);
   const connectionName = event.integration_connections?.name || "Removed connection";
   const connectionProvider = event.integration_connections?.provider || "Unknown";
   const connectionStatus = event.integration_connections?.status;
-  const workerExists = false; // TODO: Check if worker is deployed
+  // The source file exists, but it has no provider adapter or credential loader.
+  // Treat processing as unavailable until both capabilities are implemented.
+  const workerExists = false;
 
   const directionLabels: Record<string, string> = {
     inbound: "Inbound (provider → SchoolDB)",
-    outbound: "Outbound (SchoolDB → provider)",
+    outbound: "Outbound (SchoolDB → provider)"
   };
 
   function formatDateTime(dateString: string | null): string {
@@ -67,7 +72,7 @@ export default async function IntegrationEventDetailPage({
       month: "short",
       year: "numeric",
       hour: "2-digit",
-      minute: "2-digit",
+      minute: "2-digit"
     });
   }
 
@@ -83,21 +88,19 @@ export default async function IntegrationEventDetailPage({
         </Link>
         <div>
           <h1 className="text-2xl font-bold">Event #{eventId}</h1>
-          <p className="text-muted-foreground">
-            {event.event_type}
-          </p>
+          <p className="text-muted-foreground">{event.event_type}</p>
         </div>
       </div>
 
       {/* Messages */}
-      {searchParams.message && (
+      {query.message && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded">
-          {searchParams.message}
+          {query.message}
         </div>
       )}
-      {searchParams.error && (
+      {query.error && (
         <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded">
-          {searchParams.error}
+          {query.error}
         </div>
       )}
 
@@ -225,7 +228,7 @@ export default async function IntegrationEventDetailPage({
           <CardTitle>Event Payload</CardTitle>
         </CardHeader>
         <CardContent>
-          <IntegrationEventPayload payload={event.payload} />
+          <IntegrationEventPayload payload={redactPayload(event.payload)} />
         </CardContent>
       </Card>
 
@@ -285,7 +288,9 @@ export default async function IntegrationEventDetailPage({
               <div className="md:col-span-2">
                 <span className="text-muted-foreground">Last error: </span>
                 {event.integration_connections.last_error ? (
-                  <span className="text-destructive">{event.integration_connections.last_error}</span>
+                  <span className="text-destructive">
+                    {event.integration_connections.last_error}
+                  </span>
                 ) : (
                   <span className="text-muted-foreground">-</span>
                 )}

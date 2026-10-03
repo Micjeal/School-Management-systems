@@ -32,13 +32,17 @@ export default async function WebhooksPage({
   let query = supabase
     .from("webhook_endpoints")
     .select(`
-      *,
+      id,school_id,name,url,event_types,status,failure_count,last_success_at,last_failure_at,created_at,
       schools(name)
-    `);
+    `)
+    .limit(50);
 
-  // Apply RLS-based filtering - non-platform admins only see their school's endpoints
-  if (!context.is_platform_admin && context.active_school_id) {
+  if (context.active_school_id) {
     query = query.eq("school_id", context.active_school_id);
+  } else if (context.is_platform_admin) {
+    query = query.is("school_id", null);
+  } else {
+    redirect("/access-denied");
   }
 
   // Apply search filter
@@ -69,13 +73,17 @@ export default async function WebhooksPage({
   const pausedEndpoints = endpoints?.filter((e) => e.status === "paused").length || 0;
 
   // Load delivery statistics
-  const { data: deliveries } = await supabase
+  let deliveryQuery = supabase
     .from("webhook_deliveries")
     .select("status")
     .in(
       "webhook_endpoint_id",
       endpoints?.map((e) => e.id) || []
     );
+  deliveryQuery = context.active_school_id
+    ? deliveryQuery.eq("school_id", context.active_school_id)
+    : deliveryQuery.is("school_id", null);
+  const { data: deliveries } = await deliveryQuery;
 
   const failedDeliveries = deliveries?.filter((d) => d.status === "failed" || d.status === "dead_letter").length || 0;
   const totalDeliveries = deliveries?.length || 0;
@@ -129,7 +137,7 @@ export default async function WebhooksPage({
       {/* Scope indicator for school users */}
       {!context.is_platform_admin && context.active_school && (
         <div className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
-          <strong>{context.active_school.name}</strong> webhooks
+          <strong>{String(context.active_school.name)}</strong> webhooks
         </div>
       )}
 

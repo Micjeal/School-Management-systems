@@ -7,27 +7,30 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/input";
 import { processRefund, decideRefund } from "@/app/app/finance/refunds/actions";
+import { isUuid } from "@/lib/auth/access-errors";
 
 export default async function RefundDetailPage({
-  params,
+  params
 }: {
   params: Promise<{ refundId: string }>;
 }) {
   const { refundId } = await params;
+  if (!isUuid(refundId)) notFound();
   const context = await requireUserContext("finance.refund");
+  if (!context.active_school_id) notFound();
   const supabase = await createClient();
-  
+
   const { data: refund } = await (supabase.from("refunds") as any)
-    .select("*,profiles(first_name,last_name),payments(payment_reference,amount,currency_code)")
+    .select("id,refund_reference,amount,status,requested_at,reason,approved_at,processed_at,provider_reference,profiles(first_name,last_name),payments(payment_reference,amount,currency_code)")
     .eq("id", refundId)
     .eq("school_id", context.active_school_id)
     .single();
-    
+
   if (!refund) notFound();
 
   return (
     <div>
-      <PageHeader 
+      <PageHeader
         title={`Refund ${refund.refund_reference}`}
         description={refund.payments?.payment_reference || "Unknown payment"}
         backHref="/app/finance/refunds"
@@ -43,15 +46,21 @@ export default async function RefundDetailPage({
           <div className="grid gap-4 md:grid-cols-3">
             <div>
               <p className="text-sm font-medium text-slate-500">Amount</p>
-              <p className="text-sm text-slate-900">{refund.payments?.currency_code} {Number(refund.amount).toFixed(2)}</p>
+              <p className="text-sm text-slate-900">
+                {refund.payments?.currency_code} {Number(refund.amount).toFixed(2)}
+              </p>
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Requested By</p>
-              <p className="text-sm text-slate-900">{refund.profiles?.first_name} {refund.profiles?.last_name}</p>
+              <p className="text-sm text-slate-900">
+                {refund.profiles?.first_name} {refund.profiles?.last_name}
+              </p>
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Requested At</p>
-              <p className="text-sm text-slate-900">{new Date(refund.requested_at).toLocaleString()}</p>
+              <p className="text-sm text-slate-900">
+                {new Date(refund.requested_at).toLocaleString()}
+              </p>
             </div>
           </div>
           <div>
@@ -61,13 +70,17 @@ export default async function RefundDetailPage({
           {refund.approved_at && (
             <div>
               <p className="text-sm font-medium text-slate-500">Approved At</p>
-              <p className="text-sm text-slate-900">{new Date(refund.approved_at).toLocaleString()}</p>
+              <p className="text-sm text-slate-900">
+                {new Date(refund.approved_at).toLocaleString()}
+              </p>
             </div>
           )}
           {refund.processed_at && (
             <div>
               <p className="text-sm font-medium text-slate-500">Processed At</p>
-              <p className="text-sm text-slate-900">{new Date(refund.processed_at).toLocaleString()}</p>
+              <p className="text-sm text-slate-900">
+                {new Date(refund.processed_at).toLocaleString()}
+              </p>
             </div>
           )}
           {refund.provider_reference && (
@@ -91,27 +104,22 @@ export default async function RefundDetailPage({
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Decision Note (required for rejection)
                 </label>
-                <Textarea 
-                  name="decision_note" 
+                <Textarea
+                  name="decision_note"
                   placeholder="Add any notes about your decision..."
                   rows={3}
                 />
               </div>
               <div className="flex gap-3">
-                <Button 
-                  type="submit" 
-                  name="approve" 
+                <Button
+                  type="submit"
+                  name="approve"
                   value="true"
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   Approve Refund
                 </Button>
-                <Button 
-                  type="submit" 
-                  name="approve" 
-                  value="false"
-                  variant="danger"
-                >
+                <Button type="submit" name="approve" value="false" variant="danger">
                   Reject Refund
                 </Button>
               </div>
@@ -132,8 +140,8 @@ export default async function RefundDetailPage({
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Provider Reference (optional)
                 </label>
-                <Textarea 
-                  name="provider_reference" 
+                <Textarea
+                  name="provider_reference"
                   placeholder="Reference from payment provider..."
                   rows={2}
                 />

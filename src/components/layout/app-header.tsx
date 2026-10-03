@@ -20,6 +20,7 @@ import { HeaderSearch } from "@/components/layout/header-search";
 import { UserMenu } from "@/components/layout/user-menu";
 import { MODULE_GROUPS, MODULES } from "@/config/modules";
 import type { UserContext } from "@/types/context";
+import type { SchoolSwitcherOption } from "@/lib/auth/get-school-switcher-options";
 
 type AppHeaderProps = {
   context: UserContext;
@@ -278,7 +279,15 @@ export function AppHeader({
         <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
           <SchoolSwitcher
             activeSchoolId={context.active_school_id}
-            memberships={context.memberships}
+            schools={context.memberships
+              .filter((m) => m.status === "active")
+              .map<SchoolSwitcherOption>((m) => ({
+                school_id: m.school_id,
+                school_name: m.school_name,
+                school_slug: m.school_slug,
+                school_status: m.school_status,
+                subscription_status: m.subscription_status,
+              }))}
             isPlatformAdmin={context.is_platform_admin}
             action={switchSchoolAction}
           />

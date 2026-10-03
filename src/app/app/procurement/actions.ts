@@ -3,17 +3,18 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserContext } from "@/lib/auth/context";
+import { requireSchoolRecord } from "@/lib/access/records";
 
 export async function createPurchaseOrder(formData: FormData) {
   const context = await requireUserContext("inventory.manage");
   const supabase = await createClient();
+  if (!context.active_school_id) redirect("/app/procurement/orders/new?error=Select a school");
   
   const supplierId = formData.get("supplier_id") as string;
   const orderDate = formData.get("order_date") as string;
   const expectedDeliveryDate = formData.get("expected_delivery_date") as string;
   const currencyCode = formData.get("currency_code") as string;
   const notes = formData.get("notes") as string;
-  const postNow = formData.get("post_now") === "true";
 
   if (!supplierId || !orderDate) {
     redirect("/app/procurement/orders/new?error=Missing required fields");
@@ -76,6 +77,15 @@ export async function setPurchaseOrderStatus(formData: FormData) {
   if (!orderId || !status) {
     redirect("/app/procurement?error=Invalid request");
   }
+  const order = await requireSchoolRecord(supabase, "purchase_orders", orderId, context.active_school_id, "id,status");
+  const allowedTransitions: Record<string, readonly string[]> = {
+    draft: ["approved", "cancelled"],
+    approved: ["sent", "cancelled"],
+    sent: ["closed", "cancelled"]
+  };
+  if (!allowedTransitions[order.status]?.includes(status)) {
+    redirect(`/app/procurement/orders/${orderId}?error=${encodeURIComponent("That status transition is not allowed")}`);
+  }
 
   const { error } = await supabase.rpc("set_purchase_order_status" as any, {
     target_purchase_order_id: orderId,
@@ -93,6 +103,7 @@ export async function setPurchaseOrderStatus(formData: FormData) {
 export async function createGoodsReceipt(formData: FormData) {
   const context = await requireUserContext("inventory.manage");
   const supabase = await createClient();
+  if (!context.active_school_id) redirect("/app/procurement/receipts/new?error=Select a school");
   
   const purchaseOrderId = formData.get("purchase_order_id") as string;
   const goodsReceiptNumber = formData.get("goods_receipt_number") as string;
@@ -105,6 +116,11 @@ export async function createGoodsReceipt(formData: FormData) {
   if (!purchaseOrderId || !inventoryLocationId || !receivedAt) {
     redirect("/app/procurement/receipts/new?error=Missing required fields");
   }
+  const order = await requireSchoolRecord(supabase, "purchase_orders", purchaseOrderId, context.active_school_id, "id,status");
+  if (!["approved", "sent", "partially_received"].includes(order.status)) {
+    redirect("/app/procurement/receipts/new?error=The purchase order must be approved before receiving goods");
+  }
+  await requireSchoolRecord(supabase, "inventory_locations", inventoryLocationId, context.active_school_id);
 
   const lines: any[] = [];
   let index = 0;

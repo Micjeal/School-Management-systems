@@ -6,22 +6,47 @@ import { z } from "zod";
 
 export const FILE_FILTERS_SCHEMA = z.object({
   category: z.enum(["all", "documents", "academic", "financial", "attachments"]).optional(),
-  status: z.enum(["all", "verified", "unverified", "published", "issued", "voided", "expiring", "expired", "active"]).optional(),
+  status: z
+    .enum([
+      "all",
+      "verified",
+      "unverified",
+      "published",
+      "issued",
+      "voided",
+      "expiring",
+      "expired",
+      "active"
+    ])
+    .optional(),
   search: z.string().max(200).optional(),
-  schoolId: z.string().uuid().nullable().optional(),
+  schoolId: z.string().uuid().nullable().optional()
 });
 
 export const FILE_DOWNLOAD_SCHEMA = z.object({
-  source: z.enum(["person_document", "report_card", "payment_receipt", "message_attachment", "user_upload"]),
-  fileId: z.string().uuid(),
+  source: z.enum([
+    "person_document",
+    "report_card",
+    "payment_receipt",
+    "message_attachment",
+    "application_document",
+    "assessment_file",
+    "import",
+    "export",
+    "school_branding"
+  ]),
+  fileId: z.string().uuid()
 });
 
 export const FILE_UPLOAD_SCHEMA = z.object({
   fileName: z.string().min(1).max(255),
   mimeType: z.string().min(1).max(100),
-  sizeBytes: z.number().min(0).max(20 * 1024 * 1024), // 20MB max
+  sizeBytes: z
+    .number()
+    .min(0)
+    .max(20 * 1024 * 1024), // 20MB max
   category: z.string().min(1).max(50),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).optional()
 });
 
 /**
@@ -36,7 +61,7 @@ export const ALLOWED_UPLOAD_MIME_TYPES = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ] as const;
 
 /**
@@ -65,7 +90,7 @@ export const DANGEROUS_EXTENSIONS = [
   ".wsc",
   ".wsh",
   ".msi",
-  ".msp",
+  ".msp"
 ] as const;
 
 /**
@@ -73,7 +98,7 @@ export const DANGEROUS_EXTENSIONS = [
  */
 export function validateFileExtension(fileName: string): { valid: boolean; error?: string } {
   const lowerName = fileName.toLowerCase();
-  
+
   // Check for dangerous extensions
   for (const ext of DANGEROUS_EXTENSIONS) {
     if (lowerName.endsWith(ext)) {
@@ -86,10 +111,12 @@ export function validateFileExtension(fileName: string): { valid: boolean; error
   if (parts.length > 2) {
     const lastExt = parts[parts.length - 1];
     const secondLastExt = parts[parts.length - 2];
-    
+
     // If the last two parts are both dangerous or suspicious
-    if (DANGEROUS_EXTENSIONS.includes(`.${lastExt}` as any) || 
-        DANGEROUS_EXTENSIONS.includes(`.${secondLastExt}` as any)) {
+    if (
+      DANGEROUS_EXTENSIONS.includes(`.${lastExt}` as any) ||
+      DANGEROUS_EXTENSIONS.includes(`.${secondLastExt}` as any)
+    ) {
       return { valid: false, error: "File type not allowed" };
     }
   }
@@ -140,7 +167,10 @@ export function generateStoragePath(
 /**
  * Validate file size
  */
-export function validateFileSize(sizeBytes: number, maxSize: number = 20 * 1024 * 1024): { valid: boolean; error?: string } {
+export function validateFileSize(
+  sizeBytes: number,
+  maxSize: number = 20 * 1024 * 1024
+): { valid: boolean; error?: string } {
   if (sizeBytes === 0) {
     return { valid: false, error: "File is empty" };
   }

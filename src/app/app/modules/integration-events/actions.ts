@@ -1,3 +1,5 @@
+"use server";
+
 /**
  * Server actions for integration events
  */

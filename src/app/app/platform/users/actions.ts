@@ -6,10 +6,10 @@ import { requireUserContext } from "@/lib/auth/context";
 import { publicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
-const value = (formData: FormData, key: string) =>
-  String(formData.get(key) ?? "").trim();
+const value = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
 
-type FunctionPayload = {
+export type FunctionPayload = {
+  code?: unknown;
   error?: unknown;
   stage?: unknown;
   details?: unknown;
@@ -17,62 +17,51 @@ type FunctionPayload = {
   temporaryPasswordApplied?: unknown;
   userId?: unknown;
   email?: unknown;
+  temporaryPassword?: unknown;
+  personLinked?: unknown;
+  canLink?: unknown;
 };
 
-function formatFunctionError(
-  payload: FunctionPayload | null,
-  fallback: string,
-): string {
+export type InviteState = { status: "idle" | "error" | "success"; message?: string; temporaryPassword?: string };
+
+function formatFunctionError(payload: FunctionPayload | null, fallback: string): string {
   const message =
-    typeof payload?.error === "string" &&
-    payload.error.trim()
-      ? payload.error.trim()
-      : fallback;
+    typeof payload?.error === "string" && payload.error.trim() ? payload.error.trim() : fallback;
 
   const stage =
-    typeof payload?.stage === "string" &&
-    payload.stage.trim()
-      ? ` (${payload.stage.trim()})`
-      : "";
+    typeof payload?.stage === "string" && payload.stage.trim() ? ` (${payload.stage.trim()})` : "";
 
   const details =
-    typeof payload?.details === "string" &&
-    payload.details.trim()
+    typeof payload?.details === "string" && payload.details.trim()
       ? `: ${payload.details.trim()}`
       : "";
 
   return `${message}${stage}${details}`;
 }
 
-async function invokeAdminUsers(
+export async function invokeAdminUsers(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  body: Record<string, unknown>,
+  body: Record<string, unknown>
 ): Promise<FunctionPayload> {
   const {
     data: { session },
-    error: sessionError,
+    error: sessionError
   } = await supabase.auth.getSession();
 
   if (sessionError || !session?.access_token) {
-    throw new Error(
-      "Your session has expired. Sign in again and retry.",
-    );
+    throw new Error("Your session has expired. Sign in again and retry.");
   }
 
-  const response = await fetch(
-    `${publicEnv.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/admin-users`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        apikey:
-          publicEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      cache: "no-store",
+  const response = await fetch(`${publicEnv.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/admin-users`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: publicEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+      "Content-Type": "application/json"
     },
-  );
+    body: JSON.stringify(body),
+    cache: "no-store"
+  });
 
   const rawBody = await response.text();
 
@@ -88,142 +77,38 @@ async function invokeAdminUsers(
     }
   }
 
+  // Existing Auth users are candidates only. Preserve the deliberately
+  // minimal response so the UI can require a separate explicit link action.
+  if (payload?.code === "existing_account") return payload;
+
   if (!response.ok) {
     throw new Error(
-      formatFunctionError(
-        payload,
-        `User account request failed with HTTP ${response.status}.`,
-      ),
+      formatFunctionError(payload, `User account request failed with HTTP ${response.status}.`)
     );
   }
 
   if (payload?.error) {
-    throw new Error(
-      formatFunctionError(
-        payload,
-        "Unable to create the user account.",
-      ),
-    );
+    throw new Error(formatFunctionError(payload, "Unable to create the user account."));
   }
 
   return payload ?? {};
 }
 
-export async function inviteUser(formData: FormData) {
-  const context =
-    await requireUserContext("users.manage");
-
-  const schoolId =
-    value(formData, "school_id") ||
-    context.active_school_id;
-
+export async function inviteUserInteractive(_previous: InviteState, formData: FormData): Promise<InviteState> {
+  const context = await requireUserContext("users.manage");
+  const schoolId = value(formData, "school_id") || context.active_school_id;
   const email = value(formData, "email").toLowerCase();
-
-  // Do not trim passwords because spaces may be intentional.
-  const temporaryPassword = String(
-    formData.get("temporary_password") ?? "",
-  );
-
-  const confirmPassword = String(
-    formData.get("confirm_password") ?? "",
-  );
-
-  const roleCode =
-    value(formData, "role_code") || null;
-
-  const platformRole =
-    value(formData, "platform_role") || null;
-
-  if (!/^\S+@\S+\.\S+$/.test(email)) {
-    redirect(
-      `/app/platform/users?error=${encodeURIComponent(
-        "Enter a valid email address.",
-      )}`,
-    );
-  }
-
-  if (temporaryPassword.length < 10) {
-    redirect(
-      `/app/platform/users?error=${encodeURIComponent(
-        "The temporary password must contain at least 10 characters.",
-      )}`,
-    );
-  }
-
-  if (temporaryPassword !== confirmPassword) {
-    redirect(
-      `/app/platform/users?error=${encodeURIComponent(
-        "The temporary passwords do not match.",
-      )}`,
-    );
-  }
-
-  if (schoolId && !roleCode) {
-    redirect(
-      `/app/platform/users?error=${encodeURIComponent(
-        "Select a school role.",
-      )}`,
-    );
-  }
-
+  const roleCode = value(formData, "role_code") || null;
+  const platformRole = value(formData, "platform_role") || null;
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { status: "error", message: "Enter a valid email address." };
+  if (schoolId && !roleCode) return { status: "error", message: "Select a school role." };
   const supabase = await createClient();
-
-  let data: FunctionPayload;
-
   try {
-    data = await invokeAdminUsers(supabase, {
-      action: "invite",
-      email,
-      temporaryPassword,
-      schoolId: schoolId || null,
-      roleCode,
-      platformRole,
-    });
+    const data = await invokeAdminUsers(supabase, { action: "invite", email, schoolId: schoolId || null, roleCode, platformRole });
+    revalidatePath("/app/platform/users");
+    const temporaryPassword = typeof data.temporaryPassword === "string" ? data.temporaryPassword : undefined;
+    return { status: "success", message: temporaryPassword ? "Account created. Copy the temporary password now; it will not be shown again." : "Existing account updated without changing its password.", temporaryPassword };
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unable to create the user account.";
-
-    redirect(
-      `/app/platform/users?error=${encodeURIComponent(
-        message,
-      )}`,
-    );
+    return { status: "error", message: error instanceof Error ? error.message : "Unable to create the user account." };
   }
-
-  revalidatePath("/app/platform/users");
-
-  const existingAccount = Boolean(
-    data.existingAccount,
-  );
-
-  const temporaryPasswordApplied = Boolean(
-    data.temporaryPasswordApplied,
-  );
-
-  console.log("Admin user result", {
-    email: data.email,
-    existingAccount,
-    temporaryPasswordApplied,
-  });
-
-  let message: string;
-
-  if (!existingAccount) {
-    message =
-      "User account created. Share the temporary password securely; it must be changed at first login.";
-  } else if (temporaryPasswordApplied) {
-    message =
-      "The partial account was repaired and its temporary password was set. The user must change it at first login.";
-  } else {
-    message =
-      "Existing account added to the school. Its current password was not changed.";
-  }
-
-  redirect(
-    `/app/platform/users?message=${encodeURIComponent(
-      message,
-    )}`,
-  );
 }

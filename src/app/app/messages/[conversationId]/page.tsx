@@ -6,32 +6,38 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { sendMessage, markConversationRead, closeConversation } from "@/app/app/messages/actions";
+import { isUuid } from "@/lib/auth/access-errors";
 
 export default async function ConversationDetailPage({
-  params,
+  params
 }: {
   params: Promise<{ conversationId: string }>;
 }) {
   const { conversationId } = await params;
+  if (!isUuid(conversationId)) notFound();
   const context = await requireUserContext("communications.send");
+  if (!context.active_school_id) notFound();
   const supabase = await createClient();
-  
+
   const { data: conversation } = await (supabase.from("conversations") as any)
-    .select("*,conversation_members(role,left_at)")
+    .select("id,title,conversation_type,status,conversation_members!inner(role,left_at,user_id)")
     .eq("id", conversationId)
     .eq("school_id", context.active_school_id)
+    .eq("conversation_members.user_id", context.user_id)
+    .is("conversation_members.left_at", null)
     .single();
-    
+
   if (!conversation) notFound();
 
   const { data: messages } = await (supabase.from("messages") as any)
-    .select("*,sender_user_id,sender_profiles:profiles!sender_user_id(first_name,last_name)")
+    .select("id,body,created_at,sender_user_id,sender_profiles:profiles!sender_user_id(first_name,last_name)")
     .eq("conversation_id", conversationId)
+    .eq("school_id", context.active_school_id)
     .order("created_at", { ascending: true });
 
   return (
     <div>
-      <PageHeader 
+      <PageHeader
         title={conversation.title || conversation.conversation_type}
         description={conversation.conversation_type}
         backHref="/app/messages"
@@ -40,18 +46,20 @@ export default async function ConversationDetailPage({
         <CardContent className="max-h-96 overflow-y-auto space-y-3 p-4">
           {messages && messages.length > 0 ? (
             messages.map((msg: any) => (
-              <div 
-                key={msg.id} 
+              <div
+                key={msg.id}
                 className={`flex gap-3 ${msg.sender_user_id === context.user_id ? "justify-end" : "justify-start"}`}
               >
-                <div className={`max-w-xs rounded-lg p-3 ${
-                  msg.sender_user_id === context.user_id 
-                    ? "bg-blue-600 text-white" 
-                    : "bg-slate-100 text-slate-900"
-                }`}>
+                <div
+                  className={`max-w-xs rounded-lg p-3 ${
+                    msg.sender_user_id === context.user_id
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 text-slate-900"
+                  }`}
+                >
                   <p className="text-xs font-medium">
-                    {msg.sender_user_id === context.user_id 
-                      ? "You" 
+                    {msg.sender_user_id === context.user_id
+                      ? "You"
                       : `${msg.sender_profiles?.first_name} ${msg.sender_profiles?.last_name}`}
                   </p>
                   <p className="mt-1 text-sm">{msg.body}</p>
@@ -71,9 +79,9 @@ export default async function ConversationDetailPage({
         <CardContent className="p-4">
           <form action={sendMessage} className="flex gap-2">
             <input type="hidden" name="conversation_id" value={conversationId} />
-            <Textarea 
-              name="body" 
-              placeholder="Type your message..." 
+            <Textarea
+              name="body"
+              placeholder="Type your message..."
               className="flex-1"
               rows={2}
               required
@@ -89,12 +97,16 @@ export default async function ConversationDetailPage({
             <div className="flex gap-3">
               <form action={markConversationRead}>
                 <input type="hidden" name="conversation_id" value={conversationId} />
-                <Button variant="secondary" size="sm">Mark as Read</Button>
+                <Button variant="secondary" size="sm">
+                  Mark as Read
+                </Button>
               </form>
               <form action={closeConversation}>
                 <input type="hidden" name="conversation_id" value={conversationId} />
                 <input type="hidden" name="closed" value="true" />
-                <Button variant="danger" size="sm">Close Conversation</Button>
+                <Button variant="danger" size="sm">
+                  Close Conversation
+                </Button>
               </form>
             </div>
           </CardContent>

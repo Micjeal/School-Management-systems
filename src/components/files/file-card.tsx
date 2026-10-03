@@ -1,9 +1,12 @@
-import Link from "next/link";
-import { FileIcon, DownloadIcon, EyeIcon } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { FileIcon, DownloadIcon, EyeIcon, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileStatusBadge } from "./file-status-badge";
 import { getFileIcon, formatFileSize } from "@/lib/files/file-types";
-import { getFileDetailPath, getFileSourceLabel } from "@/lib/files/file-paths";
+import { getFileSourceLabel } from "@/lib/files/file-paths";
+import { getAuthorizedFileUrlAction } from "@/app/app/files/authorized-actions";
 import type { MyFileItem } from "@/lib/files/file-types";
 
 interface FileCardProps {
@@ -11,9 +14,55 @@ interface FileCardProps {
 }
 
 export function FileCard({ file }: FileCardProps) {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
   const icon = getFileIcon(file.mimeType);
   const size = formatFileSize(file.sizeBytes);
   const sourceLabel = getFileSourceLabel(file.source);
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    setDownloadError(null);
+
+    try {
+      const result = await getAuthorizedFileUrlAction({
+        source: file.source,
+        id: file.id,
+        action: "download",
+      });
+
+      if (result.success && result.url) {
+        // Open the signed URL in a new tab
+        window.open(result.url, "_blank");
+      } else {
+        setDownloadError(result.error || "Failed to download file");
+      }
+    } catch (error) {
+      setDownloadError("An error occurred while downloading");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    try {
+      const result = await getAuthorizedFileUrlAction({
+        source: file.source,
+        id: file.id,
+        action: "preview",
+      });
+
+      if (result.success && result.url) {
+        // Open the signed URL in a new tab
+        window.open(result.url, "_blank");
+      } else {
+        setDownloadError(result.error || "Failed to preview file");
+      }
+    } catch (error) {
+      setDownloadError("An error occurred while previewing");
+    }
+  };
 
   return (
     <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -35,6 +84,22 @@ export function FileCard({ file }: FileCardProps) {
           <span>Category:</span>
           <span className="font-medium">{file.category}</span>
         </div>
+        {file.owner && (
+          <div className="flex justify-between">
+            <span>Owner:</span>
+            <span className="font-medium">{file.owner}</span>
+          </div>
+        )}
+        {file.context && (
+          <div className="flex justify-between">
+            <span>Context:</span>
+            <span className="font-medium">{file.context}</span>
+          </div>
+        )}
+        <div className="flex justify-between">
+          <span>Scope:</span>
+          <span className="font-medium">{file.scope}</span>
+        </div>
         {file.schoolName && (
           <div className="flex justify-between">
             <span>School:</span>
@@ -55,22 +120,38 @@ export function FileCard({ file }: FileCardProps) {
         </div>
       </div>
 
+      {downloadError && (
+        <div className="mb-3 text-xs text-destructive">
+          {downloadError}
+        </div>
+      )}
+
       <div className="flex gap-2">
-        <Link href={getFileDetailPath(file.source, file.id)} className="flex-1">
-          <Button variant="secondary" size="sm" className="w-full">
+        {file.canPreview && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1"
+            onClick={handlePreview}
+          >
             <EyeIcon className="h-4 w-4 mr-2" />
-            View
+            Preview
           </Button>
-        </Link>
+        )}
         {file.canDownload && (
-          <form action="/app/files/actions/download" method="POST">
-            <input type="hidden" name="source" value={file.source} />
-            <input type="hidden" name="fileId" value={file.id} />
-            <Button variant="primary" size="sm" type="submit">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleDownload}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
               <DownloadIcon className="h-4 w-4 mr-2" />
-              Download
-            </Button>
-          </form>
+            )}
+            Download
+          </Button>
         )}
       </div>
     </div>

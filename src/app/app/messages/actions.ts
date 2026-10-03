@@ -3,10 +3,12 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserContext } from "@/lib/auth/context";
+import { requireConversationMember } from "@/lib/access/records";
 
 export async function createConversation(formData: FormData) {
   const context = await requireUserContext("communications.send");
   const supabase = await createClient();
+  if (!context.active_school_id) redirect("/app/messages/new?error=Select a school");
   
   const title = formData.get("title") as string;
   const conversationType = formData.get("conversation_type") as string;
@@ -41,6 +43,7 @@ export async function sendMessage(formData: FormData) {
   if (!conversationId || !body?.trim()) {
     redirect("/app/messages?error=Invalid request");
   }
+  await requireConversationMember(supabase, conversationId, context.active_school_id, context.user_id);
 
   const { error } = await supabase.rpc("send_conversation_message" as any, {
     target_conversation_id: conversationId,
@@ -64,6 +67,7 @@ export async function markConversationRead(formData: FormData) {
   if (!conversationId) {
     redirect("/app/messages?error=Invalid request");
   }
+  await requireConversationMember(supabase, conversationId, context.active_school_id, context.user_id);
 
   const { error } = await supabase.rpc("mark_conversation_read" as any, {
     target_conversation_id: conversationId,
@@ -87,6 +91,7 @@ export async function closeConversation(formData: FormData) {
   if (!conversationId) {
     redirect("/app/messages?error=Invalid request");
   }
+  await requireConversationMember(supabase, conversationId, context.active_school_id, context.user_id, true);
 
   const { error } = await supabase.rpc("set_conversation_closed" as any, {
     target_conversation_id: conversationId,

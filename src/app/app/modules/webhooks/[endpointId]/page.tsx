@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { requireUserContext } from "@/lib/auth/context";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
@@ -12,12 +13,12 @@ import {
   resumeWebhookEndpointAction,
   disableWebhookEndpointAction,
   deleteWebhookEndpointAction,
-  testWebhookEndpointAction,
+  testWebhookEndpointAction
 } from "../actions";
 
 export default async function WebhookDetailPage({
   params,
-  searchParams,
+  searchParams
 }: {
   params: Promise<{ endpointId: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
@@ -30,10 +31,12 @@ export default async function WebhookDetailPage({
   // Load endpoint with RLS - will return null if user cannot access it
   const { data: endpoint, error } = await (supabase
     .from("webhook_endpoints")
-    .select(`
-      *,
+    .select(
+      `
+      id,school_id,name,url,event_types,status,failure_count,last_success_at,last_failure_at,version,
       schools(name)
-    `)
+    `
+    )
     .eq("id", endpointId)
     .maybeSingle() as any);
 
@@ -42,21 +45,24 @@ export default async function WebhookDetailPage({
   }
 
   // Verify authorization matches RLS
-  if ((endpoint as any)?.school_id === null && !context.is_platform_admin) {
-    redirect("/access-denied");
-  }
-
-  if ((endpoint as any)?.school_id && (endpoint as any)?.school_id !== context.active_school_id && !context.is_platform_admin) {
+  if (
+    ((endpoint as any).school_id === null && !context.is_platform_admin) ||
+    ((endpoint as any).school_id !== null &&
+      context.active_school_id !== null &&
+      (endpoint as any).school_id !== context.active_school_id)
+  ) {
     redirect("/access-denied");
   }
 
   // Load delivery history
   const { data: deliveries } = await (supabase
     .from("webhook_deliveries")
-    .select(`
-      *,
+    .select(
+      `
+      id,school_id,status,response_status,response_body,attempt_count,delivered_at,next_attempt_at,error_message,created_at,outbox_event_id,
       outbox_events(event_type)
-    `)
+    `
+    )
     .eq("webhook_endpoint_id", endpointId)
     .order("created_at", { ascending: false })
     .limit(50) as any);
@@ -93,12 +99,9 @@ export default async function WebhookDetailPage({
 
       {/* Actions */}
       <div className="mb-6 flex flex-wrap gap-2">
-        <Button
-          variant="primary"
-          onClick={() => redirect(`/app/modules/webhooks/${endpointId}/edit`)}
-        >
-          Edit
-        </Button>
+        <Link href={`/app/modules/webhooks/${endpointId}/edit`}>
+          <Button variant="primary">Edit</Button>
+        </Link>
         {endpoint.status === "active" && (
           <form action={pauseWebhookEndpointAction}>
             <input type="hidden" name="endpointId" value={endpointId} />
@@ -150,11 +153,9 @@ export default async function WebhookDetailPage({
           <div>
             <div className="text-sm text-slate-500">Scope</div>
             <div className="font-medium">
-              {(endpoint as any)?.school_id === null ? (
-                "Platform-wide"
-              ) : (
-                (endpoint as any)?.schools?.name || "Unknown School"
-              )}
+              {(endpoint as any)?.school_id === null
+                ? "Platform-wide"
+                : (endpoint as any)?.schools?.name || "Unknown School"}
             </div>
           </div>
           <div>
@@ -200,7 +201,7 @@ export default async function WebhookDetailPage({
       <Card className="mb-6 p-6">
         <h2 className="text-lg font-semibold mb-4">Subscribed Events</h2>
         <div className="flex flex-wrap gap-2">
-          {endpoint.event_types.map((eventType) => {
+          {endpoint.event_types.map((eventType: string) => {
             const eventInfo = WEBHOOK_EVENT_TYPES.find((e) => e.code === eventType);
             return (
               <span
@@ -223,7 +224,7 @@ export default async function WebhookDetailPage({
         <WebhookDeliveries
           deliveries={(deliveries || []).map((d: any) => ({
             ...d,
-            event_type: d.outbox_events?.event_type,
+            event_type: d.outbox_events?.event_type
           }))}
         />
       </Card>

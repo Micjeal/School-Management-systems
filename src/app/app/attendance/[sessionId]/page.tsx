@@ -1,2 +1,65 @@
-import { notFound } from "next/navigation";import { requireUserContext } from "@/lib/auth/context";import { createClient } from "@/lib/supabase/server";import { PageHeader } from "@/components/layout/page-header";import { AttendanceGrid } from "@/components/forms/attendance-grid";import { Badge } from "@/components/ui/badge";import { Button } from "@/components/ui/button";import { saveAttendance,lockAttendance } from "../actions";
-export default async function Register({params,searchParams}:{params:Promise<{sessionId:string}>;searchParams:Promise<Record<string,string|undefined>>}){const {sessionId}=await params;const qp=await searchParams;const c=await requireUserContext("attendance.read");const s=await createClient();const [{data:session},{data:records}]=await Promise.all([(s.from("attendance_sessions") as any).select("*,class_sections(name,class_groups(name)),subjects(name)").eq("id",sessionId).eq("school_id",c.active_school_id).maybeSingle(),(s.from("student_attendance_records") as any).select("*,students(admission_number,people(first_name,last_name))").eq("attendance_session_id",sessionId).eq("school_id",c.active_school_id).order("student_id")]);if(!session)notFound();const locked=session.status==="locked";return <div><PageHeader title={`${session.class_sections?.class_groups?.name} — ${session.class_sections?.name}`} description={`${session.session_date} · ${session.session_type}${session.subjects?.name?` · ${session.subjects.name}`:""}`} backHref="/app/attendance"/>{qp.message?<p className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{qp.message}</p>:null}{qp.error?<p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{qp.error}</p>:null}<div className="mb-4 flex items-center justify-between"><Badge>{session.status}</Badge>{session.status==="submitted"?<form action={lockAttendance.bind(null,sessionId)}><Button variant="danger">Lock register</Button></form>:null}</div><AttendanceGrid rows={records??[]} action={saveAttendance.bind(null,sessionId)} locked={locked}/></div>}
+import { notFound } from "next/navigation";
+import { requireUserContext } from "@/lib/auth/context";
+import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/layout/page-header";
+import { AttendanceGrid } from "@/components/forms/attendance-grid";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { saveAttendance, lockAttendance } from "../actions";
+import { isUuid } from "@/lib/auth/access-errors";
+import { isAssignedTeacher } from "@/lib/access/teaching";
+export default async function Register({
+  params,
+  searchParams
+}: {
+  params: Promise<{ sessionId: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const { sessionId } = await params;
+  if (!isUuid(sessionId)) notFound();
+  const qp = await searchParams;
+  const c = await requireUserContext("attendance.read");
+  if (!c.active_school_id) notFound();
+  const s = await createClient();
+  const { data: session } = await (s.from("attendance_sessions") as any)
+      .select("id,class_section_id,subject_id,session_date,session_type,status,class_sections(name,class_groups(name)),subjects(name)")
+      .eq("id", sessionId)
+      .eq("school_id", c.active_school_id)
+      .maybeSingle();
+  if (!session) notFound();
+  if (!c.permissions.includes("attendance.correct") && !(await isAssignedTeacher(c, session.class_section_id, session.subject_id))) notFound();
+  const { data: records } = await (s.from("student_attendance_records") as any)
+      .select("id,student_id,attendance_status,minutes_late,reason,remarks,students(admission_number,people(first_name,last_name))")
+      .eq("attendance_session_id", sessionId)
+      .eq("school_id", c.active_school_id)
+      .order("student_id");
+  const locked = session.status === "locked";
+  return (
+    <div>
+      <PageHeader
+        title={`${session.class_sections?.class_groups?.name} — ${session.class_sections?.name}`}
+        description={`${session.session_date} · ${session.session_type}${session.subjects?.name ? ` · ${session.subjects.name}` : ""}`}
+        backHref="/app/attendance"
+      />
+      {qp.message ? (
+        <p className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{qp.message}</p>
+      ) : null}
+      {qp.error ? (
+        <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{qp.error}</p>
+      ) : null}
+      <div className="mb-4 flex items-center justify-between">
+        <Badge>{session.status}</Badge>
+        {session.status === "submitted" ? (
+          <form action={lockAttendance.bind(null, sessionId)}>
+            <Button variant="danger">Lock register</Button>
+          </form>
+        ) : null}
+      </div>
+      <AttendanceGrid
+        rows={records ?? []}
+        action={saveAttendance.bind(null, sessionId)}
+        locked={locked}
+      />
+    </div>
+  );
+}

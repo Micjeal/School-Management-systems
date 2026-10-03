@@ -14,7 +14,7 @@ type GuardianPortalProps = {
 export function GuardianPortal({ data }: GuardianPortalProps) {
   if (data.learners.length === 0) {
     return (
-      <PortalSection title="My learners" icon={<GraduationCap className="h-5 w-5 text-slate-600" />}>
+      <PortalSection title="Parent Portal" icon={<GraduationCap className="h-5 w-5 text-slate-600" />}>
         <Card>
           <CardContent className="p-6">
             <PortalEmptyState
@@ -29,7 +29,32 @@ export function GuardianPortal({ data }: GuardianPortalProps) {
   }
 
   return (
-    <PortalSection title="My learners" icon={<GraduationCap className="h-5 w-5 text-slate-600" />}>
+    <PortalSection title="Parent Portal" icon={<GraduationCap className="h-5 w-5 text-slate-600" />}>
+      <div className="mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {(
+          [
+            ["My Children", "/app/portal/learners"],
+            ["Attendance", "/app/portal/attendance"],
+            ["Results", "/app/portal/results"],
+            ["Report Cards", "/app/portal/report-cards"],
+            ["Fees", "/app/portal/finance"],
+            ["Payments", "/app/portal/payments"],
+            ["Transport", "/app/portal/transport"],
+            ["Messages", "/app/portal/messages"],
+            ["Announcements", "/app/portal/announcements"],
+            ["Notifications", "/app/portal/notifications"],
+            ["Profile", "/app/profile"]
+          ] as const
+        ).map(([label, href]) => (
+          <Link
+            key={href}
+            href={href}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
       <div className="space-y-6">
         {data.learners.map((learner) => (
           <GuardianLearnerCard key={learner.studentId} learner={learner} />

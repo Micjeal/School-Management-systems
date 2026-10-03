@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserContext } from "@/lib/auth/context";
+import { isUuid } from "@/lib/auth/access-errors";
 
 const value = (formData: FormData, key: string) =>
   String(formData.get(key) ?? "").trim();
@@ -105,6 +106,7 @@ export async function createSchool(formData: FormData) {
 
 export async function updateSchool(id: string, f: FormData) {
   const c = await requireUserContext("settings.manage");
+  if (!isUuid(id)) redirect("/app/platform/schools?error=Invalid%20school");
   if (!c.is_platform_admin && c.active_school_id !== id) redirect("/access-denied");
   const s = await createClient();
   const { error } = await (s.from("schools") as any).update({

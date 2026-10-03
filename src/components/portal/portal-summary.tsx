@@ -78,7 +78,7 @@ export function PortalSummary({ context, data }: PortalSummaryProps) {
               </Link>
               {user.mustChangePassword && (
                 <Link
-                  href="/change-password"
+                  href="/auth/change-password"
                   className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
                 >
                   <ShieldCheck className="h-4 w-4" />

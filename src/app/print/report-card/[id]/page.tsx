@@ -1,3 +1,107 @@
-import {notFound} from "next/navigation";import {requireUserContext} from "@/lib/auth/context";import {createClient} from "@/lib/supabase/server";import {formatDate} from "@/lib/formatting";import {PrintButton} from "@/components/ui/print-button";
-export default async function ReportCardPrint({params}:{params:Promise<{id:string}>}){const {id}=await params;const c=await requireUserContext("reports.read");const s=await createClient();const {data:r}=await (s.from("report_cards") as any).select("*,schools(name,logo_path),students(admission_number,people(first_name,last_name,date_of_birth)),academic_years(name),terms(name),class_sections(name,class_groups(name))").eq("id",id).eq("school_id",c.active_school_id).maybeSingle();if(!r)notFound();const summary=Array.isArray(r.academic_summary?.subjects)?r.academic_summary.subjects:[];return <article><header className="border-b-2 border-slate-950 pb-5 text-center"><h1 className="text-3xl font-black uppercase">{r.schools?.name}</h1><p className="mt-1 text-lg font-semibold">Student Report Card</p><p className="text-sm">{r.academic_years?.name} · {r.terms?.name}</p></header><section className="grid grid-cols-2 gap-4 py-5 text-sm"><p><b>Student:</b> {r.students?.people?.first_name} {r.students?.people?.last_name}</p><p><b>Admission No:</b> {r.students?.admission_number}</p><p><b>Class:</b> {r.class_sections?.class_groups?.name} — {r.class_sections?.name}</p><p><b>Date of birth:</b> {formatDate(r.students?.people?.date_of_birth)}</p></section><table className="w-full border-collapse text-sm"><thead><tr className="bg-slate-100">{["Subject","Percentage","Grade","Position"].map(x=><th key={x} className="border p-3 text-left">{x}</th>)}</tr></thead><tbody>{summary.map((x:any,i:number)=><tr key={x.subject_id??i}><td className="border p-3">{x.subject_name??x.subject_id}</td><td className="border p-3">{x.percentage??"—"}%</td><td className="border p-3">{x.grade??"—"}</td><td className="border p-3">{x.position??"—"}</td></tr>)}</tbody></table><section className="mt-5 grid grid-cols-3 gap-4"><Box l="Overall" v={`${r.overall_percentage??"—"}%`}/><Box l="Class position" v={r.class_position??"—"}/><Box l="Status" v={r.status}/></section><section className="mt-8 grid gap-8"><Comment l="Class teacher comment" v={r.class_teacher_comment}/><Comment l="Head teacher comment" v={r.head_teacher_comment}/></section><footer className="mt-12 flex justify-between text-sm"><span>Generated: {formatDate(r.generated_at)}</span><span>Authorized signature: __________________</span></footer><PrintButton/></article>}
-function Box({l,v}:{l:string;v:any}){return <div className="border p-4 text-center"><p className="text-xs uppercase text-slate-500">{l}</p><p className="mt-1 text-xl font-black">{v}</p></div>}function Comment({l,v}:{l:string;v:any}){return <div><p className="font-semibold">{l}</p><div className="mt-2 min-h-16 border-b border-slate-400">{v??""}</div></div>}
+import { notFound } from "next/navigation";
+import { getAccessContext, hasPermission } from "@/lib/auth/get-access-context";
+import { canReadStudent } from "@/lib/access/students";
+import { createClient } from "@/lib/supabase/server";
+import { formatDate } from "@/lib/formatting";
+import { PrintButton } from "@/components/ui/print-button";
+import { isUuid } from "@/lib/auth/access-errors";
+export default async function ReportCardPrint({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!isUuid(id)) notFound();
+  const c = await getAccessContext();
+  if (!c.activeSchoolId) notFound();
+  const s = await createClient();
+  const { data: owner } = await (s.from("report_cards") as any)
+    .select("student_id,status")
+    .eq("id", id)
+    .eq("school_id", c.activeSchoolId)
+    .maybeSingle();
+  if (!owner) notFound();
+  const access = await canReadStudent(c, owner.student_id);
+  if (!access.allowed || !access.academic || (!hasPermission(c, "reports.read") && owner.status !== "published")) notFound();
+  const { data: r } = await (s.from("report_cards") as any)
+    .select(
+      "id,academic_summary,overall_percentage,class_position,status,class_teacher_comment,head_teacher_comment,generated_at,schools(name,logo_path),students(admission_number,people(first_name,last_name,date_of_birth)),academic_years(name),terms(name),class_sections(name,class_groups(name))"
+    )
+    .eq("id", id)
+    .eq("school_id", c.activeSchoolId)
+    .maybeSingle();
+  if (!r) notFound();
+  const summary = Array.isArray(r.academic_summary?.subjects) ? r.academic_summary.subjects : [];
+  return (
+    <article>
+      <header className="border-b-2 border-slate-950 pb-5 text-center">
+        <h1 className="text-3xl font-black uppercase">{r.schools?.name}</h1>
+        <p className="mt-1 text-lg font-semibold">Student Report Card</p>
+        <p className="text-sm">
+          {r.academic_years?.name} · {r.terms?.name}
+        </p>
+      </header>
+      <section className="grid grid-cols-2 gap-4 py-5 text-sm">
+        <p>
+          <b>Student:</b> {r.students?.people?.first_name} {r.students?.people?.last_name}
+        </p>
+        <p>
+          <b>Admission No:</b> {r.students?.admission_number}
+        </p>
+        <p>
+          <b>Class:</b> {r.class_sections?.class_groups?.name} — {r.class_sections?.name}
+        </p>
+        <p>
+          <b>Date of birth:</b> {formatDate(r.students?.people?.date_of_birth)}
+        </p>
+      </section>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-slate-100">
+            {["Subject", "Percentage", "Grade", "Position"].map((x) => (
+              <th key={x} className="border p-3 text-left">
+                {x}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {summary.map((x: any, i: number) => (
+            <tr key={x.subject_id ?? i}>
+              <td className="border p-3">{x.subject_name ?? x.subject_id}</td>
+              <td className="border p-3">{x.percentage ?? "—"}%</td>
+              <td className="border p-3">{x.grade ?? "—"}</td>
+              <td className="border p-3">{x.position ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <section className="mt-5 grid grid-cols-3 gap-4">
+        <Box l="Overall" v={`${r.overall_percentage ?? "—"}%`} />
+        <Box l="Class position" v={r.class_position ?? "—"} />
+        <Box l="Status" v={r.status} />
+      </section>
+      <section className="mt-8 grid gap-8">
+        <Comment l="Class teacher comment" v={r.class_teacher_comment} />
+        <Comment l="Head teacher comment" v={r.head_teacher_comment} />
+      </section>
+      <footer className="mt-12 flex justify-between text-sm">
+        <span>Generated: {formatDate(r.generated_at)}</span>
+        <span>Authorized signature: __________________</span>
+      </footer>
+      <PrintButton />
+    </article>
+  );
+}
+function Box({ l, v }: { l: string; v: any }) {
+  return (
+    <div className="border p-4 text-center">
+      <p className="text-xs uppercase text-slate-500">{l}</p>
+      <p className="mt-1 text-xl font-black">{v}</p>
+    </div>
+  );
+}
+function Comment({ l, v }: { l: string; v: any }) {
+  return (
+    <div>
+      <p className="font-semibold">{l}</p>
+      <div className="mt-2 min-h-16 border-b border-slate-400">{v ?? ""}</div>
+    </div>
+  );
+}

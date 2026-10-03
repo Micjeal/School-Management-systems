@@ -217,11 +217,15 @@ export async function updateMedicalConditionAction(conditionId: string, formData
   const context = await requireUserContext("health.manage");
   const supabase = await createClient();
 
-  const { data: existing } = await supabase
+  let existingQuery = supabase
     .from("medical_conditions")
     .select("id, school_id, code, name, condition_type, description")
-    .eq("id", conditionId)
-    .maybeSingle() as any;
+    .eq("id", conditionId);
+  if (!context.is_platform_admin) {
+    if (!context.active_school_id) return { error: "Select a school first." };
+    existingQuery = existingQuery.or(`school_id.is.null,school_id.eq.${context.active_school_id}`);
+  }
+  const { data: existing } = await existingQuery.maybeSingle() as any;
 
   if (!existing) {
     return { error: "The medical condition could not be found." };
@@ -274,7 +278,7 @@ export async function updateMedicalConditionAction(conditionId: string, formData
     };
   }
 
-  const { error } = await supabase
+  let updateQuery = supabase
     .from("medical_conditions")
     .update({
       code: normalizedCode,
@@ -282,7 +286,11 @@ export async function updateMedicalConditionAction(conditionId: string, formData
       condition_type: conditionType,
       description: description?.trim() || null,
     } as any)
-    .eq("id", conditionId) as any;
+    .eq("id", conditionId);
+  updateQuery = existing.school_id === null
+    ? updateQuery.is("school_id", null)
+    : updateQuery.eq("school_id", existing.school_id);
+  const { error } = await updateQuery as any;
 
   if (error) {
     if (error.code === "23505") {
@@ -300,11 +308,15 @@ export async function deleteMedicalConditionAction(conditionId: string) {
   const context = await requireUserContext("health.manage");
   const supabase = await createClient();
 
-  const { data: existing } = await supabase
+  let existingQuery = supabase
     .from("medical_conditions")
     .select("id, school_id")
-    .eq("id", conditionId)
-    .maybeSingle() as any;
+    .eq("id", conditionId);
+  if (!context.is_platform_admin) {
+    if (!context.active_school_id) return { error: "Select a school first." };
+    existingQuery = existingQuery.or(`school_id.is.null,school_id.eq.${context.active_school_id}`);
+  }
+  const { data: existing } = await existingQuery.maybeSingle() as any;
 
   if (!existing) {
     return { error: "The medical condition could not be found." };
@@ -328,10 +340,14 @@ export async function deleteMedicalConditionAction(conditionId: string) {
     };
   }
 
-  const { error } = await supabase
+  let deleteQuery = supabase
     .from("medical_conditions")
     .delete()
     .eq("id", conditionId);
+  deleteQuery = existing.school_id === null
+    ? deleteQuery.is("school_id", null)
+    : deleteQuery.eq("school_id", existing.school_id);
+  const { error } = await deleteQuery;
 
   if (error) {
     if (error.code === "23503") {

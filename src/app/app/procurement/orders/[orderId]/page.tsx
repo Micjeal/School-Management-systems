@@ -7,32 +7,36 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { setPurchaseOrderStatus } from "@/app/app/procurement/actions";
 import Link from "next/link";
+import { isUuid } from "@/lib/auth/access-errors";
 
 export default async function PurchaseOrderDetailPage({
-  params,
+  params
 }: {
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
+  if (!isUuid(orderId)) notFound();
   const context = await requireUserContext("inventory.manage");
+  if (!context.active_school_id) notFound();
   const supabase = await createClient();
-  
+
   const { data: order } = await (supabase.from("purchase_orders") as any)
-    .select("*,suppliers(name),purchase_order_items(*,inventory_items(code,name))")
+    .select("id,purchase_order_number,status,order_date,expected_delivery_date,currency_code,total_amount,notes,suppliers(name),purchase_order_items(id,description,quantity,unit_price,received_quantity,inventory_items(code,name))")
     .eq("id", orderId)
     .eq("school_id", context.active_school_id)
     .single();
-    
+
   if (!order) notFound();
 
   const { data: receipts } = await (supabase.from("goods_receipts") as any)
     .select("id,goods_receipt_number,received_at,status")
     .eq("purchase_order_id", orderId)
+    .eq("school_id", context.active_school_id)
     .order("received_at", { ascending: false });
 
   return (
     <div>
-      <PageHeader 
+      <PageHeader
         title={`Order ${order.purchase_order_number}`}
         description={order.suppliers?.name || "Unknown supplier"}
         backHref="/app/procurement"
@@ -48,15 +52,23 @@ export default async function PurchaseOrderDetailPage({
           <div className="grid gap-4 md:grid-cols-3">
             <div>
               <p className="text-sm font-medium text-slate-500">Order Date</p>
-              <p className="text-sm text-slate-900">{new Date(order.order_date).toLocaleDateString()}</p>
+              <p className="text-sm text-slate-900">
+                {new Date(order.order_date).toLocaleDateString()}
+              </p>
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Expected Delivery</p>
-              <p className="text-sm text-slate-900">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString() : "Not set"}</p>
+              <p className="text-sm text-slate-900">
+                {order.expected_delivery_date
+                  ? new Date(order.expected_delivery_date).toLocaleDateString()
+                  : "Not set"}
+              </p>
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Total Amount</p>
-              <p className="text-sm text-slate-900">{order.currency_code} {Number(order.total_amount).toFixed(2)}</p>
+              <p className="text-sm text-slate-900">
+                {order.currency_code} {Number(order.total_amount).toFixed(2)}
+              </p>
             </div>
           </div>
           {order.notes && (
@@ -78,11 +90,17 @@ export default async function PurchaseOrderDetailPage({
               <div key={item.id} className="flex justify-between rounded-lg border p-3">
                 <div>
                   <p className="font-medium">{item.inventory_items?.name || "Unknown item"}</p>
-                  <p className="text-sm text-slate-500">{item.inventory_items?.code || item.description}</p>
+                  <p className="text-sm text-slate-500">
+                    {item.inventory_items?.code || item.description}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium">{item.quantity} × {Number(item.unit_price).toFixed(2)}</p>
-                  <p className="text-sm text-slate-500">Received: {item.received_quantity || 0}/{item.quantity}</p>
+                  <p className="font-medium">
+                    {item.quantity} × {Number(item.unit_price).toFixed(2)}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Received: {item.received_quantity || 0}/{item.quantity}
+                  </p>
                 </div>
               </div>
             ))}
@@ -94,23 +112,27 @@ export default async function PurchaseOrderDetailPage({
         <CardHeader>
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Goods Receipts</h2>
-            <Link href={`/app/procurement/receipts/new?order_id=${orderId}`}>
-              <Button size="sm">Create Receipt</Button>
-            </Link>
+            {["approved", "sent", "partially_received"].includes(order.status) ? (
+              <Link href={`/app/procurement/receipts/new?order_id=${orderId}`}>
+                <Button size="sm">Create Receipt</Button>
+              </Link>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent>
           {receipts && receipts.length > 0 ? (
             <div className="space-y-2">
               {receipts.map((receipt: any) => (
-                <Link 
-                  key={receipt.id} 
+                <Link
+                  key={receipt.id}
                   href={`/app/procurement/receipts/${receipt.id}`}
                   className="flex justify-between rounded-lg border p-3 hover:bg-slate-50"
                 >
                   <span className="font-medium">{receipt.goods_receipt_number}</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm text-slate-500">{new Date(receipt.received_at).toLocaleDateString()}</span>
+                    <span className="text-sm text-slate-500">
+                      {new Date(receipt.received_at).toLocaleDateString()}
+                    </span>
                     <Badge>{receipt.status}</Badge>
                   </div>
                 </Link>
@@ -130,7 +152,12 @@ export default async function PurchaseOrderDetailPage({
           <CardContent>
             <form action={setPurchaseOrderStatus} className="flex gap-3">
               <input type="hidden" name="order_id" value={orderId} />
-              <Button type="submit" name="status" value="approved" className="bg-emerald-600 hover:bg-emerald-700">
+              <Button
+                type="submit"
+                name="status"
+                value="approved"
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
                 Approve Order
               </Button>
               <Button type="submit" name="status" value="cancelled" variant="danger">
@@ -140,6 +167,9 @@ export default async function PurchaseOrderDetailPage({
           </CardContent>
         </Card>
       )}
+      {order.status === "approved" ? (
+        <Card><CardHeader><h2 className="font-semibold">Actions</h2></CardHeader><CardContent><form action={setPurchaseOrderStatus}><input type="hidden" name="order_id" value={orderId} /><Button name="status" value="sent">Mark as sent</Button></form></CardContent></Card>
+      ) : null}
     </div>
   );
 }

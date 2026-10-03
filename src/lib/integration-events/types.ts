@@ -14,7 +14,7 @@ export type IntegrationEventStatus =
   | "dead_letter";
 
 export interface IntegrationEvent {
-  id: bigint;
+  id: number;
   school_id: string | null;
   integration_connection_id: string | null;
   provider_event_id: string | null;
@@ -61,5 +61,5 @@ export interface IntegrationEventFilters {
 export interface RetryResult {
   success: boolean;
   error?: string;
-  eventId: bigint;
+  eventId: number;
 }

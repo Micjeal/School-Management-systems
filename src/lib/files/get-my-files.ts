@@ -1,9 +1,10 @@
-﻿import "server-only";
+import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 
 import type {
   FileSummary,
+  FileSource,
   MyFileFilters,
   MyFileItem,
 } from "@/lib/files/file-types";
@@ -715,6 +716,10 @@ export async function getMyFiles(
             document.verified_at,
           ),
 
+        owner: user.id,
+        context: personId,
+        scope: "personal",
+
         issuedAt:
           document.issued_on,
 
@@ -806,6 +811,10 @@ export async function getMyFiles(
 
         sizeBytes: null,
         status: "published",
+
+        owner: user.id,
+        context: card.student_id,
+        scope: "school",
 
         issuedAt:
           card.published_at,
@@ -938,6 +947,10 @@ export async function getMyFiles(
               ? "voided"
               : "issued",
 
+          owner: user.id,
+          context: receipt.payment_id,
+          scope: "school",
+
           issuedAt:
             receipt.issued_at,
 
@@ -1037,6 +1050,10 @@ export async function getMyFiles(
 
       status: "available",
 
+      owner: user.id,
+      context: null,
+      scope: "conversation",
+
       issuedAt:
         attachment.created_at,
 
@@ -1130,4 +1147,38 @@ export function getFileSummary(
         );
       }).length,
   };
+}
+
+/**
+ * Fetch a single authorized file by its source type and ID.
+ * Returns null when the file is not found or the user has no access.
+ */
+export async function getFileBySourceAndId(
+  source: FileSource,
+  fileId: string,
+): Promise<MyFileItem | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  // Determine the user's active school from their memberships
+  const { data: memberships } = await supabase
+    .from("school_memberships")
+    .select("school_id")
+    .eq("user_id", user.id)
+    .eq("status", "active");
+
+  const schoolIds = (memberships ?? []).map((m: any) => m.school_id);
+  if (schoolIds.length === 0) return null;
+
+  // Try each school the user belongs to
+  for (const schoolId of schoolIds) {
+    const { files } = await getMyFiles(schoolId);
+    const match = files.find(
+      (f) => f.id === fileId && f.source === source,
+    );
+    if (match) return match;
+  }
+
+  return null;
 }

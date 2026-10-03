@@ -1,6 +1,7 @@
 import { requireUserContext } from "@/lib/auth/context";
 import { getSchoolSwitcherOptions } from "@/lib/auth/get-school-switcher-options";
 import { getPortalData } from "@/lib/portal/get-portal-data";
+import { resolvePortalRole, getPortalRoleLabel } from "@/lib/portal/resolve-portal-role";
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { PortalSummary } from "@/components/portal/portal-summary";
@@ -9,8 +10,10 @@ import { PortalQuickActions } from "@/components/portal/portal-quick-actions";
 import { EmployeePortal } from "@/components/portal/employee-portal";
 import { StudentPortal } from "@/components/portal/student-portal";
 import { GuardianPortal } from "@/components/portal/guardian-portal";
+import { TeacherPortal } from "@/components/portal/teacher-portal";
 import { PlatformPortal } from "@/components/portal/platform-portal";
 import { RoleWorkspace } from "@/components/portal/role-workspace";
+import { PortalRoleSwitcher } from "@/components/portal/portal-role-switcher";
 import { Card, CardContent } from "@/components/ui/card";
 import { PortalEmptyState } from "@/components/portal/portal-empty-state";
 import { SchoolSwitcher } from "@/components/layout/school-switcher";
@@ -28,8 +31,8 @@ export default async function PortalPage() {
     return (
       <PageContainer width="wide">
         <PageHeader
-          title="My portal"
-          description="Your personal records, tasks and school services."
+          title="Platform Portal"
+          description="Platform administration and school management."
         />
         <PortalSummary context={context} data={data} />
         <PlatformPortal data={data.personas.platformAdmin!} />
@@ -90,14 +93,46 @@ export default async function PortalPage() {
     );
   }
 
-  // Normal school portal
+  // Load portal data and resolve role
   const data = await getPortalData(context);
+  const roleResolution = resolvePortalRole(context, data.personas);
 
+  // If no portal identity exists
+  if (roleResolution.primaryRole === "none") {
+    return (
+      <PageContainer width="wide">
+        <PageHeader
+          title="My portal"
+          description="Your personal records, tasks and school services."
+        />
+        <Card>
+          <CardContent className="p-6">
+            <PortalEmptyState
+              icon={<Building2 className="h-8 w-8" />}
+              title="No personal portal profile"
+              description="No personal portal profile is linked to this account. Contact your school administrator."
+            />
+          </CardContent>
+        </Card>
+        <RoleWorkspace context={context} />
+      </PageContainer>
+    );
+  }
+
+  // Render role-specific portal
   return (
     <PageContainer width="wide">
       <PageHeader
-        title="My portal"
-        description="Your personal records, tasks and school services."
+        title={getPortalRoleLabel(roleResolution.primaryRole)}
+        description={
+          roleResolution.primaryRole === "teacher"
+            ? "Your teaching assignments, classes, and academic tasks."
+            : roleResolution.primaryRole === "student"
+            ? "Your classes, attendance, results, and school activities."
+            : roleResolution.primaryRole === "guardian"
+            ? "Your children's progress, attendance, and school information."
+            : "Your employment information and school services."
+        }
       />
 
       <PortalSummary context={context} data={data} />
@@ -106,24 +141,34 @@ export default async function PortalPage() {
 
       <PortalQuickActions actions={data.quickActions} />
 
-      {data.personas.employee && (
-        <EmployeePortal data={data.personas.employee} />
-      )}
-
-      {data.personas.student && (
+      {/* Role-specific portal content */}
+      {roleResolution.primaryRole === "student" && data.personas.student && (
         <StudentPortal data={data.personas.student} />
       )}
 
-      {data.personas.guardian && (
+      {roleResolution.primaryRole === "guardian" && data.personas.guardian && (
         <GuardianPortal data={data.personas.guardian} />
       )}
 
-      {data.personas.platformAdmin && (
-        <PlatformPortal data={data.personas.platformAdmin} />
+      {roleResolution.primaryRole === "teacher" && data.personas.employee && (
+        <TeacherPortal data={data.personas.employee} />
       )}
 
-      {!data.hasLinkedPerson && (
-        <RoleWorkspace context={context} />
+      {roleResolution.primaryRole === "employee" && data.personas.employee && (
+        <EmployeePortal data={data.personas.employee} />
+      )}
+
+      {/* Fallback for platform admin viewing a school */}
+      {!data.hasLinkedPerson && context.is_platform_admin && (
+        <Card>
+          <CardContent className="p-6">
+            <PortalEmptyState
+              icon={<Building2 className="h-8 w-8" />}
+              title="No personal portal profile"
+              description="As a platform administrator, you have access to school administration through the main application. Your personal portal profile is not linked to this school."
+            />
+          </CardContent>
+        </Card>
       )}
     </PageContainer>
   );

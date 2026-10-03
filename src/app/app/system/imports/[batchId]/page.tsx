@@ -6,31 +6,36 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { processImportBatch } from "../actions";
+import { isUuid } from "@/lib/auth/access-errors";
 
 export default async function ImportBatchDetailPage({
-  params,
+  params
 }: {
   params: Promise<{ batchId: string }>;
 }) {
   const { batchId } = await params;
-  const context = await requireUserContext("settings.manage");
+  if (!isUuid(batchId)) notFound();
+  const context = await requireUserContext("imports.process");
+  if (!context.active_school_id) notFound();
   const supabase = await createClient();
-  
+
   const { data: batch } = await (supabase.from("import_batches") as any)
+    .select("id,import_type,created_at,status,processed_rows,success_rows,failed_rows,completed_at,error_summary")
     .eq("id", batchId)
     .eq("school_id", context.active_school_id)
     .single();
-    
+
   if (!batch) notFound();
 
   const { data: rows } = await (supabase.from("import_rows") as any)
-    .select("*")
+    .select("id,row_number,status,errors")
     .eq("import_batch_id", batchId)
+    .eq("school_id", context.active_school_id)
     .order("row_number");
 
   return (
     <div>
-      <PageHeader 
+      <PageHeader
         title={`Import ${batch.import_type}`}
         description={`Batch created ${new Date(batch.created_at).toLocaleString()}`}
         backHref="/app/system/imports"
@@ -58,7 +63,11 @@ export default async function ImportBatchDetailPage({
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Completed</p>
-              <p className="text-sm text-slate-900">{batch.completed_at ? new Date(batch.completed_at).toLocaleString() : "Not completed"}</p>
+              <p className="text-sm text-slate-900">
+                {batch.completed_at
+                  ? new Date(batch.completed_at).toLocaleString()
+                  : "Not completed"}
+              </p>
             </div>
           </div>
           {batch.error_summary && (
@@ -67,7 +76,10 @@ export default async function ImportBatchDetailPage({
               <p className="text-sm text-slate-900">{batch.error_summary}</p>
             </div>
           )}
-          {batch.status === "uploaded" || batch.status === "ready" || batch.status === "failed" || batch.status === "completed_with_errors" ? (
+          {batch.status === "uploaded" ||
+          batch.status === "ready" ||
+          batch.status === "failed" ||
+          batch.status === "completed_with_errors" ? (
             <form action={processImportBatch}>
               <input type="hidden" name="batch_id" value={batchId} />
               <Button className="bg-blue-600 hover:bg-blue-700">Process Import</Button>

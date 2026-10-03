@@ -2,23 +2,40 @@ export type FileSource =
   | "person_document"
   | "report_card"
   | "payment_receipt"
-  | "message_attachment";
+  | "message_attachment"
+  | "application_document"
+  | "assessment_file"
+  | "import"
+  | "export"
+  | "school_branding";
 
 export type FileCategory =
   | "Documents"
   | "Academic"
   | "Financial"
-  | "Attachments";
+  | "Attachments"
+  | "Medical"
+  | "Admissions"
+  | "Imports"
+  | "Exports"
+  | "Branding";
 
 export type FileStatus =
   | "verified"
   | "unverified"
   | "published"
+  | "draft"
   | "issued"
   | "voided"
   | "expiring"
   | "expired"
-  | "available";
+  | "available"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "missing"
+  | "orphaned"
+  | "healthy";
 
 export type MyFileItem = {
   id: string;
@@ -36,6 +53,10 @@ export type MyFileItem = {
 
   status: FileStatus;
 
+  owner: string | null;
+  context: string | null;
+  scope: string;
+
   issuedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
@@ -44,6 +65,57 @@ export type MyFileItem = {
   canDownload: boolean;
   canReplace: boolean;
   canDelete: boolean;
+};
+
+export type PlatformFileSummary = {
+  totalStoredFiles: number;
+  storageUsed: number;
+  schoolsUsingStorage: number;
+  failedOrMissingFiles: number;
+  recentImports: number;
+  recentExports: number;
+  orphanedObjects: number;
+  securityWarnings: number;
+};
+
+export type SchoolFileSummary = {
+  schoolId: string;
+  schoolName: string | null;
+  storedFileCount: number;
+  storageUsed: number;
+  imports: number;
+  exports: number;
+  missingObjects: number;
+  orphanedObjects: number;
+  lastFileActivity: string | null;
+};
+
+export type StorageHealthIssue = {
+  id: string;
+  schoolId: string;
+  schoolName: string | null;
+  issueType: "missing_object" | "orphaned_object" | "invalid_path" | "wrong_school_prefix" | "duplicate_path" | "oversized_object" | "failed_cleanup";
+  source: FileSource | null;
+  metadataId: string | null;
+  storagePath: string | null;
+  detectedAt: string;
+  severity: "low" | "medium" | "high" | "critical";
+};
+
+export const FILE_SOURCE_BUCKETS: Record<FileSource, string | Record<string, string>> = {
+  person_document: {
+    student: "student-documents",
+    employee: "staff-documents",
+    guardian: "student-documents",
+  },
+  report_card: "report-cards",
+  payment_receipt: "receipts",
+  message_attachment: "message-attachments",
+  application_document: "student-documents",
+  assessment_file: "assessment-files",
+  import: "imports",
+  export: "exports",
+  school_branding: "school-branding",
 };
 
 export type MyFileFilters = {
@@ -88,11 +160,18 @@ export function getStatusLabel(status: FileStatus): string {
     verified: "Verified",
     unverified: "Unverified",
     published: "Published",
+    draft: "Draft",
     issued: "Issued",
     voided: "Voided",
     expiring: "Expiring Soon",
     expired: "Expired",
     available: "Available",
+    processing: "Processing",
+    completed: "Completed",
+    failed: "Failed",
+    missing: "Missing",
+    orphaned: "Orphaned",
+    healthy: "Healthy",
   };
   
   return labels[status] || status;

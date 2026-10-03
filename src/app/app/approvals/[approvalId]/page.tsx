@@ -8,23 +8,23 @@ import { Textarea } from "@/components/ui/input";
 import { decideApproval } from "@/app/app/approvals/actions";
 
 export default async function ApprovalDetailPage({
-  params,
+  params
 }: {
   params: Promise<{ approvalId: string }>;
 }) {
   const { approvalId } = await params;
   const context = await requireUserContext();
   const supabase = await createClient();
-  
-  const { data: approval } = await supabase.rpc("get_my_pending_approvals" as any) as any;
+
+  const { data: approval } = (await supabase.rpc("get_my_pending_approvals" as any)) as any;
   const approvalDetail = approval?.find((a: any) => a.approval_request_id === approvalId);
-  
+
   if (!approvalDetail) notFound();
 
   return (
     <div>
-      <PageHeader 
-        title="Approval Request" 
+      <PageHeader
+        title="Approval Request"
         description={`Review ${approvalDetail.request_type} request`}
         backHref="/app/approvals"
       />
@@ -53,7 +53,9 @@ export default async function ApprovalDetailPage({
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Requested at</p>
-            <p className="text-sm text-slate-900">{new Date(approvalDetail.requested_at).toLocaleString()}</p>
+            <p className="text-sm text-slate-900">
+              {new Date(approvalDetail.requested_at).toLocaleString()}
+            </p>
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Current Step</p>
@@ -79,7 +81,9 @@ export default async function ApprovalDetailPage({
                 <div key={index} className="flex justify-between text-sm">
                   <span className="text-slate-600">{history.approver}</span>
                   <span className="text-slate-900">{history.decision}</span>
-                  <span className="text-slate-500">{new Date(history.decided_at).toLocaleString()}</span>
+                  <span className="text-slate-500">
+                    {new Date(history.decided_at).toLocaleString()}
+                  </span>
                 </div>
               ))}
             </div>
@@ -100,27 +104,22 @@ export default async function ApprovalDetailPage({
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Notes (required for rejection)
               </label>
-              <Textarea 
-                name="decision_note" 
+              <Textarea
+                name="decision_note"
                 placeholder="Add any notes about your decision..."
                 rows={3}
               />
             </div>
             <div className="flex gap-3">
-              <Button 
-                type="submit" 
-                name="decision" 
+              <Button
+                type="submit"
+                name="decision"
                 value="approve"
                 className="bg-emerald-600 hover:bg-emerald-700"
               >
                 Approve
               </Button>
-              <Button 
-                type="submit" 
-                name="decision" 
-                value="reject"
-                variant="danger"
-              >
+              <Button type="submit" name="decision" value="reject" variant="danger">
                 Reject
               </Button>
             </div>

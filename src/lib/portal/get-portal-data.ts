@@ -16,12 +16,12 @@ import type {
   NotificationSummary,
   ConversationSummary,
   PrivateFileSummary,
-  PortalQuickAction,
+  PortalQuickAction
 } from "./portal-types";
 
 export async function getPortalData(
   context: UserContext,
-  selectedLearnerId?: string | null,
+  selectedLearnerId?: string | null
 ): Promise<PortalData> {
   const supabase = await createClient();
   const schoolId = context.active_school_id;
@@ -29,26 +29,29 @@ export async function getPortalData(
   // Build user data
   const user: PortalUser = {
     id: context.user_id,
-    displayName: (context.profile.display_name ?? 
-      `${context.profile.first_name ?? ""} ${context.profile.last_name ?? ""}`.trim()) || "User",
+    displayName:
+      (context.profile.display_name ??
+        `${context.profile.first_name ?? ""} ${context.profile.last_name ?? ""}`.trim()) ||
+      "User",
     initials: getInitials(context.profile.first_name, context.profile.last_name),
     firstName: context.profile.first_name,
     lastName: context.profile.last_name,
     mustChangePassword: context.profile.must_change_password,
-    isActive: context.profile.is_active,
+    isActive: context.profile.is_active
   };
 
   // Build school data
   const membership = context.memberships.find((m) => m.school_id === schoolId);
-  const school: PortalSchool = schoolId && membership
-    ? {
-        id: membership.school_id,
-        name: membership.school_name,
-        slug: membership.school_slug,
-        status: membership.school_status,
-        subscriptionStatus: membership.subscription_status,
-      }
-    : null;
+  const school: PortalSchool =
+    schoolId && membership
+      ? {
+          id: membership.school_id,
+          name: membership.school_name,
+          slug: membership.school_slug,
+          status: membership.school_status,
+          subscriptionStatus: membership.subscription_status
+        }
+      : null;
 
   // Build membership data
   const portalMembership: PortalMembership = membership
@@ -61,7 +64,7 @@ export async function getPortalData(
         subscriptionStatus: membership.subscription_status,
         campusId: membership.campus_id,
         status: membership.status,
-        roles: membership.roles,
+        roles: membership.roles
       }
     : null;
 
@@ -69,11 +72,19 @@ export async function getPortalData(
   const personas = await loadPersonas(supabase, context, schoolId, selectedLearnerId ?? null);
 
   // Load universal data (announcements, notifications, messages, files)
+  const isStudentOnly = Boolean(
+    membership?.roles.some((role) => role.code === "student") &&
+    !context.is_platform_admin &&
+    !context.permissions.includes("communications.read")
+  );
   const [announcements, notifications, messages, privateFiles] = await Promise.all([
-    loadAnnouncements(supabase, context.user_id, schoolId),
+    // The existing loader is school-wide rather than audience-aware. Do not
+    // disclose published internal announcements to a student until an
+    // audience-scoped contract is available.
+    isStudentOnly ? Promise.resolve([]) : loadAnnouncements(supabase, context.user_id, schoolId),
     loadNotifications(supabase, context.user_id, schoolId),
     loadMessages(supabase, context.user_id, schoolId),
-    loadPrivateFiles(supabase, context.user_id, schoolId),
+    loadPrivateFiles(supabase, context.user_id, schoolId)
   ]);
 
   // Build quick actions
@@ -93,7 +104,7 @@ export async function getPortalData(
     privateFiles,
     quickActions,
     hasLinkedPerson,
-    selectedLearnerId,
+    selectedLearnerId
   };
 }
 
@@ -101,7 +112,7 @@ async function loadPersonas(
   supabase: Awaited<ReturnType<typeof createClient>>,
   context: UserContext,
   schoolId: string | null,
-  selectedLearnerId: string | null,
+  selectedLearnerId: string | null
 ): Promise<PortalPersonas> {
   if (!schoolId) {
     // Platform view - only load platform admin persona
@@ -109,22 +120,28 @@ async function loadPersonas(
       employee: null,
       student: null,
       guardian: null,
-      platformAdmin: context.is_platform_admin ? await loadPlatformPortalData(supabase, context) : null,
+      platformAdmin: context.is_platform_admin
+        ? await loadPlatformPortalData(supabase, context)
+        : null
     };
   }
 
   // Get portal identity using secure RPC
-  const { data: identity, error: identityError } =
-    await (supabase as any).rpc("get_my_portal_identity", {
-      target_school_id: schoolId,
-    });
+  const { data: identity, error: identityError } = await (supabase as any).rpc(
+    "get_my_portal_identity",
+    {
+      target_school_id: schoolId
+    }
+  );
 
   if (identityError || !identity) {
     return {
       employee: null,
       student: null,
       guardian: null,
-      platformAdmin: context.is_platform_admin ? await loadPlatformPortalData(supabase, context) : null,
+      platformAdmin: context.is_platform_admin
+        ? await loadPlatformPortalData(supabase, context)
+        : null
     };
   }
 
@@ -132,44 +149,61 @@ async function loadPersonas(
 
   // Load all personas using secure RPCs in parallel
   const [employee, student, guardian] = await Promise.all([
-    personId && identity.employee_id ? loadEmployeePortalData(supabase, schoolId, personId) : Promise.resolve(null),
-    personId && identity.student_id ? loadStudentPortalData(supabase, schoolId, personId) : Promise.resolve(null),
-    personId && identity.guardian_id ? loadGuardianPortalData(supabase, schoolId, personId, selectedLearnerId) : Promise.resolve(null),
+    personId && identity.employee_id
+      ? loadEmployeePortalData(supabase, schoolId, personId)
+      : Promise.resolve(null),
+    personId && identity.student_id
+      ? loadStudentPortalData(supabase, schoolId, personId)
+      : Promise.resolve(null),
+    personId && identity.guardian_id
+      ? loadGuardianPortalData(supabase, schoolId, personId, selectedLearnerId)
+      : Promise.resolve(null)
   ]);
 
   return {
     employee,
     student,
     guardian,
-    platformAdmin: context.is_platform_admin ? await loadPlatformPortalData(supabase, context) : null,
+    platformAdmin: context.is_platform_admin
+      ? await loadPlatformPortalData(supabase, context)
+      : null
   };
 }
 
 async function loadEmployeePortalData(
   supabase: Awaited<ReturnType<typeof createClient>>,
   schoolId: string,
-  personId: string,
+  personId: string
 ): Promise<EmployeePortalData | null> {
   // Use secure RPC for employee portal data
-  const { data: employee, error: employeeError } =
-    await (supabase as any).rpc("get_my_employee_portal", {
-      target_school_id: schoolId,
-    });
+  const { data: employee, error: employeeError } = await (supabase as any).rpc(
+    "get_my_employee_portal",
+    {
+      target_school_id: schoolId
+    }
+  );
 
   if (employeeError || !employee) return null;
 
   const isTeacher = employee.is_teacher;
 
-  // Load today's lessons if teacher
+  // Load today's lessons if teacher - scoped by teacher_assignments via timetable_entries
   let todayLessons: EmployeePortalData["todayLessons"] = [];
+  let assignedClasses: EmployeePortalData["assignedClasses"] = [];
+  let assignedSubjects: EmployeePortalData["assignedSubjects"] = [];
+  let studentCount = 0;
+
   if (isTeacher) {
     const today = new Date().getDay();
-    const { data: timetable } = await supabase
+    const { data: timetable } = (await supabase
       .from("timetable_entries")
-      .select("id,subjects(name),class_sections(name,class_groups(name)),rooms(name),starts_at,ends_at,weekday")
+      .select(
+        "id,subjects(name),class_sections(name,class_groups(name)),rooms(name),starts_at,ends_at,weekday"
+      )
       .eq("teacher_employee_id", employee.employee_id)
+      .eq("school_id", schoolId)
       .eq("weekday", today === 0 ? 7 : today)
-      .order("starts_at") as any;
+      .order("starts_at")) as any;
 
     todayLessons = (timetable ?? []).map((entry: any) => ({
       id: entry.id,
@@ -178,30 +212,85 @@ async function loadEmployeePortalData(
       classGroup: entry.class_sections?.class_groups?.name,
       room: entry.rooms?.name,
       startsAt: entry.starts_at,
-      endsAt: entry.ends_at,
+      endsAt: entry.ends_at
     }));
+
+    // Load assigned classes from teacher_assignments - assignment-scoped
+    const { data: assignments } = (await supabase
+      .from("teacher_assignments")
+      .select(
+        "id,class_sections(id,name,class_groups(name)),subjects(id,name),is_primary"
+      )
+      .eq("employee_id", employee.employee_id)
+      .eq("school_id", schoolId)) as any;
+
+    // Build unique classes list
+    const classMap = new Map<string, any>();
+    (assignments ?? []).forEach((assignment: any) => {
+      const classId = assignment.class_sections?.id;
+      if (classId && !classMap.has(classId)) {
+        classMap.set(classId, {
+          id: classId,
+          classSection: assignment.class_sections?.name || "",
+          classGroup: assignment.class_sections?.class_groups?.name,
+          subject: assignment.subjects?.name,
+          isPrimary: assignment.is_primary
+        });
+      }
+    });
+    assignedClasses = Array.from(classMap.values());
+
+    // Build unique subjects list with class count
+    const subjectMap = new Map<string, number>();
+    (assignments ?? []).forEach((assignment: any) => {
+      const subjectId = assignment.subjects?.id;
+      const subjectName = assignment.subjects?.name;
+      if (subjectId && subjectName) {
+        subjectMap.set(subjectName, (subjectMap.get(subjectName) || 0) + 1);
+      }
+    });
+    assignedSubjects = Array.from(subjectMap.entries()).map(([subject, classCount]) => ({
+      id: subject,
+      subject,
+      classCount
+    }));
+
+    // Count unique students in assigned classes - assignment-scoped
+    const classIds = assignedClasses.map((c) => c.id);
+    if (classIds.length > 0) {
+      const { count } = (await supabase
+        .from("student_enrolments")
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId)
+        .eq("enrolment_status", "active")
+        .in("class_section_id", classIds)) as any;
+      studentCount = count || 0;
+    }
   }
 
-  const { data: leaveRequests } = await supabase
+  const { data: leaveRequests } = (await supabase
     .from("leave_requests")
     .select("id,leave_types(name),starts_on,ends_on,status,requested_days")
     .eq("employee_id", employee.employee_id)
+    .eq("school_id", schoolId)
     .order("requested_at", { ascending: false })
-    .limit(5) as any;
+    .limit(5)) as any;
 
-  const { data: payslips } = await supabase
+  const { data: payslips } = (await supabase
     .from("payroll_entries")
     .select("id,net_pay,payment_status,payroll_runs(run_number,payroll_periods(name))")
     .eq("employee_id", employee.employee_id)
+    .eq("school_id", schoolId)
     .order("created_at", { ascending: false })
-    .limit(5) as any;
+    .limit(5)) as any;
 
-  const { data: qualifications } = await supabase
+  const { data: qualifications } = (await supabase
     .from("employee_qualifications")
     .select("id,name,institution,year")
     .eq("employee_id", employee.employee_id)
+    .eq("school_id", schoolId)
     .order("year", { ascending: false })
-    .limit(10) as any;
+    .limit(10)) as any;
 
   return {
     employeeId: employee.employee_id,
@@ -216,93 +305,109 @@ async function loadEmployeePortalData(
     reportingManager: null,
     isTeacher,
     todayLessons,
+    assignedClasses,
+    assignedSubjects,
+    studentCount,
     leaveRequests: (leaveRequests ?? []).map((req: any) => ({
       id: req.id,
       leaveType: req.leave_types?.name || "",
       startsOn: req.starts_on,
       endsOn: req.ends_on,
       status: req.status,
-      requestedDays: req.requested_days || 0,
+      requestedDays: req.requested_days || 0
     })),
     payslips: (payslips ?? []).map((pay: any) => ({
       id: pay.id,
-      payrollPeriod: pay.payroll_runs?.payroll_periods?.name || pay.payroll_runs?.run_number || "",
+      payrollPeriod: pay.payroll_runs?.payroll_periods?.name || `Run ${pay.payroll_runs?.run_number || ""}`,
       runNumber: pay.payroll_runs?.run_number,
       netPay: pay.net_pay,
-      paymentStatus: pay.payment_status,
+      paymentStatus: pay.payment_status
     })),
     qualifications: (qualifications ?? []).map((qual: any) => ({
       id: qual.id,
       name: qual.name,
       institution: qual.institution,
-      year: qual.year,
-    })),
+      year: qual.year
+    }))
   };
 }
 
 async function loadStudentPortalData(
   supabase: Awaited<ReturnType<typeof createClient>>,
   schoolId: string,
-  personId: string,
+  personId: string
 ): Promise<StudentPortalData | null> {
   // Use secure RPC for student portal data
-  const { data: student, error: studentError } =
-    await (supabase as any).rpc("get_my_student_portal", {
-      target_school_id: schoolId,
-    });
+  const { data: student, error: studentError } = await (supabase as any).rpc(
+    "get_my_student_portal",
+    {
+      target_school_id: schoolId
+    }
+  );
 
   if (studentError || !student) return null;
 
   // Load additional data that RPC doesn't provide
-  const { data: enrolment } = await supabase
+  const { data: enrolment } = (await supabase
     .from("student_enrolments")
     .select(
-      "id,class_sections(name,class_groups(name)),academic_years(name),terms(name),boarding_status",
+      "id,class_sections(id,name,class_groups(name)),academic_years(name),terms(id,name),boarding_status"
     )
     .eq("student_id", student.student_id)
+    .eq("school_id", schoolId)
     .eq("enrolment_status", "active")
     .order("academic_year_id", { ascending: false })
     .limit(1)
-    .maybeSingle() as any;
+    .maybeSingle()) as any;
 
   // Load attendance for current term
-  const attendance = await loadStudentAttendance(supabase, student.student_id, enrolment?.terms?.id ?? null);
+  const attendance = await loadStudentAttendance(
+    supabase,
+    schoolId,
+    student.student_id,
+    enrolment?.terms?.id ?? null
+  );
 
   // Load published results only
-  const { data: results } = await supabase
+  const { data: results } = (await supabase
     .from("subject_results")
     .select("id,percentage_score,grade,status,subjects(name),terms(name),teacher_remark")
     .eq("student_id", student.student_id)
+    .eq("school_id", schoolId)
     .eq("status", "published")
     .order("calculated_at", { ascending: false })
-    .limit(12) as any;
+    .limit(12)) as any;
 
   // Load invoices
-  const { data: invoices } = await supabase
+  const { data: invoices } = (await supabase
     .from("invoices")
     .select("id,invoice_number,balance_due,status,due_date")
     .eq("student_id", student.student_id)
+    .eq("school_id", schoolId)
     .in("status", ["draft", "sent", "partial", "overdue"])
     .order("due_date", { ascending: false })
-    .limit(8) as any;
+    .limit(8)) as any;
 
   // Load library loans
-  const { data: loans } = await supabase
+  const { data: loans } = (await supabase
     .from("library_loans")
     .select("id,due_at,status,library_copies(library_items(title))")
     .eq("student_id", student.student_id)
-    .in("status", ["active", "overdue"]) as any;
+    .eq("school_id", schoolId)
+    .in("status", ["active", "overdue"])) as any;
 
   // Load timetable
   const today = new Date().getDay();
-  const { data: timetable } = await supabase
+  const { data: timetable } = (await supabase
     .from("timetable_entries")
     .select(
-      "id,subjects(name),rooms(name),starts_at,ends_at,weekday,teacher_assignments(employees(people(first_name,last_name)))",
+      "id,subjects(name),rooms(name),starts_at,ends_at,weekday,teacher_assignments(employees(people(first_name,last_name))),timetable_versions!inner(status)"
     )
     .eq("class_section_id", (enrolment as any)?.class_sections?.id)
+    .eq("school_id", schoolId)
+    .eq("timetable_versions.status", "published")
     .eq("weekday", today === 0 ? 7 : today)
-    .order("starts_at") as any;
+    .order("starts_at")) as any;
 
   return {
     studentId: student.student_id,
@@ -323,21 +428,21 @@ async function loadStudentPortalData(
       term: result.terms?.name || "",
       percentage: result.percentage_score,
       grade: result.grade,
-      teacherRemark: result.teacher_remark,
+      teacherRemark: result.teacher_remark
     })),
     invoices: (invoices ?? []).map((inv: any) => ({
       id: inv.id,
       invoiceNumber: inv.invoice_number,
       balanceDue: inv.balance_due,
       status: inv.status,
-      dueDate: inv.due_date,
+      dueDate: inv.due_date
     })),
     libraryLoans: (loans ?? []).map((loan: any) => ({
       id: loan.id,
       title: loan.library_copies?.library_items?.title || "",
       dueAt: loan.due_at,
       status: loan.status,
-      isOverdue: loan.status === "overdue",
+      isOverdue: loan.status === "overdue"
     })),
     timetable: (timetable ?? []).map((entry: any) => ({
       id: entry.id,
@@ -348,21 +453,23 @@ async function loadStudentPortalData(
       room: entry.rooms?.name,
       startsAt: entry.starts_at,
       endsAt: entry.ends_at,
-      weekday: entry.weekday,
-    })),
+      weekday: entry.weekday
+    }))
   };
 }
 
 async function loadStudentAttendance(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  schoolId: string,
   studentId: string,
-  termId: string | undefined,
+  termId: string | undefined
 ) {
-  const { data: attendance } = await supabase
+  const { data: attendance } = (await supabase
     .from("student_attendance_records")
     .select("attendance_status")
     .eq("student_id", studentId)
-    .limit(1000) as any;
+    .eq("school_id", schoolId)
+    .limit(1000)) as any;
 
   if (!attendance || attendance.length === 0) {
     return {
@@ -372,7 +479,7 @@ async function loadStudentAttendance(
       excused: 0,
       total: 0,
       percentage: 0,
-      period: "No attendance recorded yet",
+      period: "No attendance recorded yet"
     };
   }
 
@@ -390,7 +497,7 @@ async function loadStudentAttendance(
     excused,
     total,
     percentage,
-    period: termId ? "Current term" : "All records",
+    period: termId ? "Current term" : "All records"
   };
 }
 
@@ -398,31 +505,34 @@ async function loadGuardianPortalData(
   supabase: Awaited<ReturnType<typeof createClient>>,
   schoolId: string,
   personId: string,
-  selectedLearnerId: string | null,
+  selectedLearnerId: string | null
 ): Promise<GuardianPortalData | null> {
   // Use secure RPC for guardian portal data
-  const { data: guardian, error: guardianError } =
-    await (supabase as any).rpc("get_my_guardian_portal", {
+  const { data: guardian, error: guardianError } = await (supabase as any).rpc(
+    "get_my_guardian_portal",
+    {
       target_school_id: schoolId,
-      selected_student_id: selectedLearnerId ?? null,
-    });
+      selected_student_id: selectedLearnerId ?? null
+    }
+  );
 
   if (guardianError || !guardian) return null;
 
   // Load linked learners with authorization flags
-  const { data: links } = await supabase
+  const { data: links } = (await supabase
     .from("student_guardians")
     .select(
-      "id,relationship_type,receives_academic_reports,receives_financial_notices,can_pick_up,is_financially_responsible,students(id,person_id,admission_number,status,people(first_name,last_name),student_enrolments(class_sections(name,class_groups(name))))",
+      "id,relationship_type,receives_academic_reports,receives_financial_notices,can_pick_up,is_financially_responsible,students(id,person_id,admission_number,status,people(first_name,last_name),student_enrolments(class_sections(name,class_groups(name))))"
     )
     .eq("guardian_id", guardian.guardian_id)
-    .eq("students.status", "active") as any;
+    .eq("school_id", schoolId)
+    .eq("students.status", "active")) as any;
 
   if (guardian.learner_count === 0) {
     return {
       guardianId: guardian.guardian_id,
       personId,
-      learners: [],
+      learners: []
     };
   }
 
@@ -451,20 +561,21 @@ async function loadGuardianPortalData(
         receivesAcademicReports: link.receives_academic_reports,
         receivesFinancialNotices: link.receives_financial_notices,
         canPickUp: link.can_pick_up,
-        isFinanciallyResponsible: link.is_financially_responsible,
+        isFinanciallyResponsible: link.is_financially_responsible
       };
 
       // Load academic data if authorized
       if (link.receives_academic_reports) {
         const [attendance, results] = await Promise.all([
-          loadStudentAttendance(supabase, student.id, undefined),
+          loadStudentAttendance(supabase, schoolId, student.id, undefined),
           supabase
             .from("subject_results")
             .select("id,percentage_score,grade,status,subjects(name),terms(name)")
             .eq("student_id", student.id)
+            .eq("school_id", schoolId)
             .eq("status", "published")
             .order("calculated_at", { ascending: false })
-            .limit(8),
+            .limit(8)
         ]);
 
         learner.attendance = attendance;
@@ -473,7 +584,7 @@ async function loadGuardianPortalData(
           subject: r.subjects?.name || "",
           term: r.terms?.name || "",
           percentage: r.percentage_score,
-          grade: r.grade,
+          grade: r.grade
         }));
       }
 
@@ -483,6 +594,7 @@ async function loadGuardianPortalData(
           .from("invoices")
           .select("id,invoice_number,balance_due,status,due_date")
           .eq("student_id", student.id)
+          .eq("school_id", schoolId)
           .in("status", ["draft", "sent", "partial", "overdue"])
           .order("due_date", { ascending: false })
           .limit(5);
@@ -492,24 +604,24 @@ async function loadGuardianPortalData(
           invoiceNumber: inv.invoice_number,
           balanceDue: inv.balance_due,
           status: inv.status,
-          dueDate: inv.due_date,
+          dueDate: inv.due_date
         }));
       }
 
       return learner;
-    }),
+    })
   );
 
   return {
     guardianId: guardian.guardian_id,
     personId,
-    learners,
+    learners
   };
 }
 
 async function loadPlatformPortalData(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  context: UserContext,
+  context: UserContext
 ): Promise<PlatformPortalData> {
   const schoolCount = context.memberships.length;
 
@@ -531,28 +643,28 @@ async function loadPlatformPortalData(
       type: n.type,
       priority: n.priority,
       createdAt: n.created_at,
-      isRead: n.is_read,
-    })),
+      isRead: n.is_read
+    }))
   };
 }
 
 async function loadAnnouncements(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  schoolId: string | null,
+  schoolId: string | null
 ): Promise<AnnouncementSummary[]> {
   if (!schoolId) return [];
 
-  const { data: announcements } = await supabase
+  const { data: announcements } = (await supabase
     .from("announcements")
     .select(
-      "id,title,priority,published_at,requires_acknowledgement,announcement_acknowledgements(id)",
+      "id,title,priority,published_at,requires_acknowledgement,announcement_acknowledgements(id)"
     )
     .eq("school_id", schoolId)
-    .eq("is_published", true)
+    .eq("status", "published")
     .gte("published_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()) // Last 30 days
     .order("published_at", { ascending: false })
-    .limit(5) as any;
+    .limit(5)) as any;
 
   return (announcements ?? []).map((a: any) => ({
     id: a.id,
@@ -560,20 +672,22 @@ async function loadAnnouncements(
     priority: a.priority,
     publishedAt: a.published_at,
     requiresAcknowledgement: a.requires_acknowledgement,
-    isAcknowledged: a.announcement_acknowledgements?.length > 0,
+    isAcknowledged: a.announcement_acknowledgements?.length > 0
   }));
 }
 
 async function loadNotifications(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  schoolId: string | null,
+  schoolId: string | null
 ): Promise<NotificationSummary[]> {
   // Use secure RPC for notifications
-  const { data: notifications, error: notificationsError } =
-    await (supabase as any).rpc("get_my_portal_notifications", {
-      target_school_id: schoolId ?? null,
-    });
+  const { data: notifications, error: notificationsError } = await (supabase as any).rpc(
+    "get_my_portal_notifications",
+    {
+      target_school_id: schoolId ?? null
+    }
+  );
 
   if (notificationsError || !notifications) return [];
 
@@ -584,21 +698,59 @@ async function loadNotifications(
     priority: n.priority,
     createdAt: n.created_at,
     isRead: n.is_read,
-    actionLink: n.action_link,
+    actionLink: n.action_link
   }));
 }
 
 async function loadMessages(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  schoolId: string | null,
+  schoolId: string | null
 ): Promise<ConversationSummary[]> {
-  const { data: conversations } = await supabase
+  if (!schoolId) return [];
+
+  const { data: conversations } = (await supabase
     .from("conversations")
-    .select("id,title,last_message_at,conversation_participants(people(first_name,last_name))")
-    .contains("participant_ids", [userId])
+    .select(
+      `
+      id,
+      title,
+      last_message_at,
+      conversation_participants(people(first_name,last_name)),
+      conversation_members!inner(user_id, last_read_at)
+    `
+    )
+    .eq("conversation_members.user_id", userId)
+    .is("conversation_members.left_at", null)
+    .eq("school_id", schoolId)
     .order("last_message_at", { ascending: false })
-    .limit(5) as any;
+    .limit(5)) as any;
+
+  // Build a map of conversation IDs to last_read_at timestamps
+  const lastReadMap = new Map<string, string | null>();
+  (conversations ?? []).forEach((c: any) => {
+    const memberData = c.conversation_members?.[0];
+    lastReadMap.set(c.id, memberData?.last_read_at || null);
+  });
+
+  // Count unread messages for each conversation
+  const unreadCounts = new Map<string, number>();
+  await Promise.all(
+    [...lastReadMap.entries()].map(async ([conversationId, lastReadAt]) => {
+      let query = supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", conversationId)
+        .eq("school_id", schoolId)
+        .is("deleted_at", null)
+        .or(`sender_user_id.is.null,sender_user_id.neq.${userId}`);
+
+      if (lastReadAt) query = query.gt("created_at", lastReadAt);
+
+      const { count, error } = (await query) as any;
+      unreadCounts.set(conversationId, error ? 0 : count || 0);
+    })
+  );
 
   return (conversations ?? []).map((c: any) => ({
     id: c.id,
@@ -607,60 +759,57 @@ async function loadMessages(
       .map((p: any) => `${p.people.first_name} ${p.people.last_name}`)
       .filter((n: string) => n),
     lastMessageAt: c.last_message_at,
-    unreadCount: 0, // TODO: Implement unread count
+    unreadCount: unreadCounts.get(c.id) || 0
   }));
 }
 
 async function loadPrivateFiles(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  schoolId: string | null,
+  schoolId: string | null
 ): Promise<PrivateFileSummary[]> {
-  const { data: files } = await supabase
+  const { data: files } = (await (supabase as any)
     .from("private_files")
     .select("id,name,category,uploaded_at")
     .eq("user_id", userId)
     .order("uploaded_at", { ascending: false })
-    .limit(5) as any;
+    .limit(5)) as any;
 
   return (files ?? []).map((f: any) => ({
     id: f.id,
     name: f.name,
     category: f.category,
-    uploadedAt: f.uploaded_at,
+    uploadedAt: f.uploaded_at
   }));
 }
 
-function buildQuickActions(
-  context: UserContext,
-  personas: PortalPersonas,
-): PortalQuickAction[] {
+function buildQuickActions(context: UserContext, personas: PortalPersonas): PortalQuickAction[] {
   const actions: PortalQuickAction[] = [
     {
       label: "Update profile",
       href: "/app/profile",
-      icon: "UserRound",
+      icon: "UserRound"
     },
     {
       label: "Private files",
       href: "/app/files",
-      icon: "FolderLock",
+      icon: "FolderLock"
     },
     {
       label: "Announcements",
       href: "/app/announcements",
-      icon: "Megaphone",
+      icon: "Megaphone"
     },
     {
       label: "Messages",
       href: "/app/messages",
-      icon: "MessageSquare",
+      icon: "MessageSquare"
     },
     {
       label: "Notifications",
       href: "/app/notifications",
-      icon: "Bell",
-    },
+      icon: "Bell"
+    }
   ];
 
   // Add employee-specific actions
@@ -671,7 +820,7 @@ function buildQuickActions(
         href: "/app/attendance",
         permission: "attendance.read",
         icon: "CalendarCheck",
-        requiresPersona: "employee",
+        requiresPersona: "employee"
       });
     }
     if (context.permissions.includes("assessments.read")) {
@@ -680,7 +829,7 @@ function buildQuickActions(
         href: "/app/assessments",
         permission: "assessments.read",
         icon: "FileText",
-        requiresPersona: "employee",
+        requiresPersona: "employee"
       });
     }
     actions.push(
@@ -688,14 +837,14 @@ function buildQuickActions(
         label: "View my schedule",
         href: "/app/portal/schedule",
         icon: "CalendarDays",
-        requiresPersona: "employee",
+        requiresPersona: "employee"
       },
       {
         label: "View payslips",
         href: "/app/portal/payslips",
         icon: "ReceiptText",
-        requiresPersona: "employee",
-      },
+        requiresPersona: "employee"
+      }
     );
   }
 
@@ -706,33 +855,31 @@ function buildQuickActions(
         label: "View timetable",
         href: "/app/portal/timetable",
         icon: "CalendarDays",
-        requiresPersona: "student",
+        requiresPersona: "student"
       },
       {
         label: "View results",
         href: "/app/portal/results",
         icon: "ChartNoAxesColumnIncreasing",
-        requiresPersona: "student",
+        requiresPersona: "student"
       },
       {
         label: "View balances",
         href: "/app/portal/finance",
         icon: "WalletCards",
-        requiresPersona: "student",
-      },
+        requiresPersona: "student"
+      }
     );
   }
 
   // Add guardian-specific actions
   if (personas.guardian) {
-    actions.push(
-      {
-        label: "View learners",
-        href: "/app/portal/learners",
-        icon: "GraduationCap",
-        requiresPersona: "guardian",
-      },
-    );
+    actions.push({
+      label: "View learners",
+      href: "/app/portal/learners",
+      icon: "GraduationCap",
+      requiresPersona: "guardian"
+    });
   }
 
   // Add platform admin actions
@@ -742,20 +889,20 @@ function buildQuickActions(
         label: "Open platform dashboard",
         href: "/platform",
         icon: "LayoutDashboard",
-        requiresPersona: "platform",
+        requiresPersona: "platform"
       },
       {
         label: "Manage schools",
         href: "/platform/schools",
         icon: "Building2",
-        requiresPersona: "platform",
+        requiresPersona: "platform"
       },
       {
         label: "Manage users",
         href: "/platform/users",
         icon: "Users",
-        requiresPersona: "platform",
-      },
+        requiresPersona: "platform"
+      }
     );
   }
 
@@ -765,45 +912,45 @@ function buildQuickActions(
       label: "Manage students",
       href: "/app/students",
       permission: "students.read",
-      icon: "Users",
+      icon: "Users"
     },
     {
       label: "Manage staff",
       href: "/app/staff",
       permission: "staff.read",
-      icon: "UserCog",
+      icon: "UserCog"
     },
     {
       label: "Finance",
       href: "/app/finance/invoices",
       permission: "finance.read",
-      icon: "WalletCards",
+      icon: "WalletCards"
     },
     {
       label: "Attendance",
       href: "/app/attendance",
       permission: "attendance.read",
-      icon: "CalendarCheck",
+      icon: "CalendarCheck"
     },
     {
       label: "Assessments",
       href: "/app/assessments",
       permission: "assessments.read",
-      icon: "FileText",
+      icon: "FileText"
     },
     {
       label: "Library",
       href: "/app/library/circulation",
       permission: "library.manage",
-      icon: "BookOpen",
-    },
+      icon: "BookOpen"
+    }
   ];
 
   // Filter admin actions by permissions
   const visibleAdminActions = adminActions.filter(
     (action) =>
       context.is_platform_admin ||
-      (action.permission && context.permissions.includes(action.permission)),
+      (action.permission && context.permissions.includes(action.permission))
   );
 
   actions.push(...visibleAdminActions);

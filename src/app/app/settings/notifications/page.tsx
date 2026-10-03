@@ -1,0 +1,2 @@
+import { requireUserContext } from "@/lib/auth/context";import { PageHeader } from "@/components/layout/page-header";import { EmptyState } from "@/components/feedback/empty-state";
+export default async function NotificationSettings(){await requireUserContext("settings.manage");return <div><PageHeader title="Notification settings" description="School notification configuration" backHref="/app/settings"/><EmptyState title="This feature is not yet configured." description="The current generated schema has no school-level notification settings contract."/></div>}

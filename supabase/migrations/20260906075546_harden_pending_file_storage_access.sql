@@ -1,0 +1,10 @@
+begin;
+alter table public.application_documents drop constraint if exists application_documents_application_fk;
+alter table public.application_documents add constraint application_documents_application_fk foreign key(school_id,application_id) references public.applications(school_id,id) on delete cascade;
+do $$ declare p record; begin for p in select policyname from pg_policies where schemaname='public' and tablename='application_documents' loop execute format('drop policy %I on public.application_documents',p.policyname); end loop; end $$;
+create policy application_documents_read on public.application_documents for select to authenticated using(private.has_permission(school_id,'admissions.read'));
+create policy application_documents_manage on public.application_documents for all to authenticated using(private.has_permission(school_id,'admissions.manage')) with check(private.has_permission(school_id,'admissions.manage'));
+revoke all on public.application_documents from anon;
+grant select,insert,update,delete on public.application_documents to authenticated;
+grant all on public.application_documents to service_role;
+commit;

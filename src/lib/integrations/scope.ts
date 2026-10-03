@@ -2,7 +2,7 @@ import type { UserContext } from "@/types/context";
 
 export async function resolveIntegrationScope(
   context: UserContext,
-  requestedSchoolId: string | null,
+  _requestedSchoolId: string | null,
 ): Promise<string | null> {
   if (!context.is_platform_admin) {
     if (!context.active_school_id) {
@@ -12,11 +12,7 @@ export async function resolveIntegrationScope(
     return context.active_school_id;
   }
 
-  if (!requestedSchoolId || requestedSchoolId === "__platform__") {
-    return null;
-  }
-
-  return requestedSchoolId;
+  return context.active_school_id;
 }
 
 export function getScopeLabel(schoolId: string | null, schoolName?: string): string {
@@ -38,7 +34,7 @@ export function canManageIntegration(
 
   // School admins can manage their school's integrations
   if (context.is_platform_admin) {
-    return true;
+    return context.active_school_id === connectionSchoolId;
   }
 
   return context.active_school_id === connectionSchoolId;

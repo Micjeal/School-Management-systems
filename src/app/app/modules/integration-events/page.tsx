@@ -48,10 +48,11 @@ export default async function IntegrationEventsPage({
   let query = supabase
     .from("integration_events")
     .select(`
-      *,
+      id,school_id,integration_connection_id,provider_event_id,event_type,direction,status,retry_count,next_retry_at,processed_at,error_message,received_at,
       integration_connections!left(name, provider, status),
       schools!left(name)
-    `);
+    `)
+    .limit(50);
 
   // Apply scope filter
   if (schoolId === null) {

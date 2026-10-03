@@ -10,6 +10,7 @@ import {
   Building2,
   ChevronDown,
   FileSearch,
+  ChartNoAxesCombined,
   FolderLock,
   LayoutDashboard,
   LogOut,
@@ -20,7 +21,7 @@ import {
   School,
   Settings,
   UserRound,
-  X,
+  X
 } from "lucide-react";
 
 import { logoutAction, switchSchoolAction } from "@/app/app/actions";
@@ -30,6 +31,22 @@ import type { UserContext } from "@/types/context";
 import type { SchoolSwitcherOption } from "@/lib/auth/get-school-switcher-options";
 
 const SIDEBAR_STORAGE_KEY = "schooldb.sidebar.collapsed";
+const STUDENT_NAVIGATION = [
+  ["Dashboard", "/app"],
+  ["My Portal", "/app/portal"],
+  ["My Profile", "/app/profile"],
+  ["Timetable", "/app/portal/timetable"],
+  ["Attendance", "/app/portal/attendance"],
+  ["Results", "/app/portal/results"],
+  ["Report Cards", "/app/portal/report-cards"],
+  ["Fees", "/app/portal/finance"],
+  ["Library", "/app/portal/library"],
+  ["Boarding", "/app/portal/boarding"],
+  ["Transport", "/app/portal/transport"],
+  ["Messages", "/app/portal/messages"],
+  ["My Files", "/app/portal/files"],
+  ["Notifications", "/app/portal/notifications"]
+] as const;
 
 type AppShellClientProps = {
   context: UserContext;
@@ -55,58 +72,56 @@ const STATIC_ROUTE_CONTEXTS: readonly (RouteContext & { href: string })[] = [
   {
     href: "/app/platform/users",
     title: "Users",
-    description: "Manage user access and school roles",
+    description: "Manage user access and school roles"
   },
   {
     href: "/app/platform/roles",
     title: "Roles",
-    description: "Configure roles and permissions",
+    description: "Configure roles and permissions"
   },
   {
     href: "/app/students",
     title: "Students",
-    description: "Manage student records and enrolment",
+    description: "Manage student records and enrolment"
   },
   {
     href: "/app/staff",
     title: "Staff",
-    description: "Manage employees and assignments",
+    description: "Manage employees and assignments"
   },
   {
     href: "/app/finance",
     title: "Finance",
-    description: "Review billing, payments and accounts",
+    description: "Review billing, payments and accounts"
   },
   {
     href: "/app/notifications",
     title: "Notifications",
-    description: "Review recent alerts and updates",
+    description: "Review recent alerts and updates"
   },
+  { href: "/app/inventory", title: "Inventory", description: "Manage stock and suppliers" },
+  { href: "/app/boarding", title: "Boarding", description: "Manage boarding operations" },
+  { href: "/app/transport", title: "Transport", description: "Manage school transport" },
+  { href: "/app/reports", title: "Reports", description: "Run authorized school reports" },
+  { href: "/app/settings", title: "Settings", description: "Configure the active school" },
   {
     href: "/app/search",
     title: "Search",
-    description: "Find records across SchoolDB",
+    description: "Find records across SchoolDB"
   },
   {
     href: "/app",
     title: "Dashboard",
-    description: "Overview of your active school context",
-  },
+    description: "Overview of your active school context"
+  }
 ];
 
-function canSee(
-  context: UserContext,
-  module: (typeof MODULES)[number],
-) {
+function canSee(context: UserContext, module: (typeof MODULES)[number]) {
   if (module.platformOnly && !context.is_platform_admin) {
     return false;
   }
 
-  if (
-    !module.platformOnly &&
-    module.schoolScoped &&
-    !context.active_school_id
-  ) {
+  if (!module.platformOnly && module.schoolScoped && !context.active_school_id) {
     return false;
   }
 
@@ -137,7 +152,7 @@ function getRouteContext(pathname: string): RouteContext {
   const moduleMatch = [...MODULES]
     .map((module) => ({
       module,
-      href: moduleHref(module),
+      href: moduleHref(module)
     }))
     .sort((a, b) => b.href.length - a.href.length)
     .find((entry) => isActiveRoute(pathname, entry.href));
@@ -145,14 +160,16 @@ function getRouteContext(pathname: string): RouteContext {
   if (moduleMatch && (!staticMatch || moduleMatch.href.length > staticMatch.href.length)) {
     return {
       title: moduleMatch.module.label,
-      description: moduleMatch.module.description,
+      description: moduleMatch.module.description
     };
   }
 
-  return staticMatch ?? {
-    title: "SchoolDB",
-    description: "School management workspace",
-  };
+  return (
+    staticMatch ?? {
+      title: "SchoolDB",
+      description: "School management workspace"
+    }
+  );
 }
 
 function getInitials(name: string) {
@@ -173,7 +190,7 @@ function NavigationLink({
   label,
   pathname,
   collapsed = false,
-  onNavigate,
+  onNavigate
 }: NavigationLinkProps) {
   const active = isActiveRoute(pathname, href);
 
@@ -193,23 +210,19 @@ function NavigationLink({
         collapsed ? "justify-center px-2" : "items-center gap-3 px-3",
         active
           ? "bg-blue-600 text-white shadow-sm shadow-blue-950/30"
-          : "text-slate-300 hover:bg-slate-900 hover:text-white",
+          : "text-slate-300 hover:bg-slate-900 hover:text-white"
       ].join(" ")}
     >
       <Icon
         aria-hidden="true"
         className={[
           "h-5 w-5 shrink-0",
-          active
-            ? "text-white"
-            : "text-slate-400 group-hover:text-slate-200",
+          active ? "text-white" : "text-slate-400 group-hover:text-slate-200"
         ].join(" ")}
         strokeWidth={1.9}
       />
 
-      <span className={collapsed ? "sr-only" : "truncate"}>
-        {label}
-      </span>
+      <span className={collapsed ? "sr-only" : "truncate"}>{label}</span>
     </Link>
   );
 }
@@ -219,7 +232,7 @@ function MobileNavigationLink({
   icon: Icon,
   label,
   pathname,
-  onNavigate,
+  onNavigate
 }: NavigationLinkProps) {
   const active = isActiveRoute(pathname, href);
 
@@ -231,9 +244,7 @@ function MobileNavigationLink({
       className={[
         "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
-        active
-          ? "bg-blue-50 text-blue-700"
-          : "text-slate-700 hover:bg-slate-100",
+        active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
       ].join(" ")}
     >
       <Icon aria-hidden="true" className="h-5 w-5 shrink-0" strokeWidth={1.9} />
@@ -242,11 +253,7 @@ function MobileNavigationLink({
   );
 }
 
-export function AppShellClient({
-  context,
-  schoolOptions,
-  children,
-}: AppShellClientProps) {
+export function AppShellClient({ context, schoolOptions, children }: AppShellClientProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarPreferenceLoaded, setSidebarPreferenceLoaded] = useState(false);
@@ -254,6 +261,8 @@ export function AppShellClient({
 
   useEffect(() => {
     const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    // Hydrate the persisted client-only preference after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSidebarCollapsed(saved === "true");
     setSidebarPreferenceLoaded(true);
   }, []);
@@ -263,13 +272,12 @@ export function AppShellClient({
       return;
     }
 
-    window.localStorage.setItem(
-      SIDEBAR_STORAGE_KEY,
-      String(sidebarCollapsed),
-    );
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarCollapsed));
   }, [sidebarCollapsed, sidebarPreferenceLoaded]);
 
   useEffect(() => {
+    // Close the transient mobile overlay after navigation completes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileNavigationOpen(false);
   }, [pathname]);
 
@@ -290,32 +298,30 @@ export function AppShellClient({
     () =>
       MODULE_GROUPS.map((group) => ({
         ...group,
-        modules: MODULES.filter(
-          (module) =>
-            module.group === group.id && canSee(context, module),
-        ),
+        modules: MODULES.filter((module) => module.group === group.id && canSee(context, module))
       })).filter((group) => group.modules.length > 0),
-    [context],
+    [context]
   );
 
   const activeMembership = context.memberships.find(
-    (membership) => membership.school_id === context.active_school_id,
+    (membership) => membership.school_id === context.active_school_id
+  );
+  const isStudentOnly = Boolean(
+    activeMembership?.roles.some((role) => role.code === "student") &&
+    !context.is_platform_admin &&
+    context.permissions.length === 0
   );
 
   const name =
     context.profile.display_name ||
-    [context.profile.first_name, context.profile.last_name]
-      .filter(Boolean)
-      .join(" ") ||
+    [context.profile.first_name, context.profile.last_name].filter(Boolean).join(" ") ||
     "SchoolDB user";
 
   const initials = getInitials(name);
   const primaryRole =
-    context.platform_roles[0]?.name ||
-    activeMembership?.roles[0]?.name ||
-    "School user";
+    context.platform_roles[0]?.name || activeMembership?.roles[0]?.name || "School user";
   const activeSchoolName =
-    context.active_school?.name ?? activeMembership?.school_name ?? null;
+    (context.active_school?.name as string | undefined) ?? activeMembership?.school_name ?? null;
   const contextName = activeSchoolName || "Platform administration";
   const ContextIcon = activeSchoolName ? School : Building2;
   const routeContext = getRouteContext(pathname);
@@ -331,7 +337,7 @@ export function AppShellClient({
         sidebarPreferenceLoaded ? "duration-200" : "duration-0",
         sidebarCollapsed
           ? "lg:grid-cols-[80px_minmax(0,1fr)]"
-          : "lg:grid-cols-[280px_minmax(0,1fr)]",
+          : "lg:grid-cols-[280px_minmax(0,1fr)]"
       ].join(" ")}
     >
       <aside
@@ -342,10 +348,9 @@ export function AppShellClient({
           <Link
             href="/app"
             aria-label="SchoolDB dashboard"
-            className={[
-              "flex items-center",
-              sidebarCollapsed ? "justify-center" : "gap-3",
-            ].join(" ")}
+            className={["flex items-center", sidebarCollapsed ? "justify-center" : "gap-3"].join(
+              " "
+            )}
           >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-black text-white shadow-sm">
               SD
@@ -353,12 +358,8 @@ export function AppShellClient({
 
             {!sidebarCollapsed ? (
               <span className="min-w-0">
-                <span className="block truncate text-base font-bold text-white">
-                  SchoolDB
-                </span>
-                <span className="block truncate text-xs text-slate-500">
-                  School management
-                </span>
+                <span className="block truncate text-base font-bold text-white">SchoolDB</span>
+                <span className="block truncate text-xs text-slate-500">School management</span>
               </span>
             ) : null}
           </Link>
@@ -369,9 +370,7 @@ export function AppShellClient({
             title={sidebarCollapsed ? contextName : undefined}
             className={[
               "rounded-xl border border-slate-800 bg-slate-900/70",
-              sidebarCollapsed
-                ? "flex justify-center p-2.5"
-                : "flex items-center gap-3 p-3",
+              sidebarCollapsed ? "flex justify-center p-2.5" : "flex items-center gap-3 p-3"
             ].join(" ")}
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-300">
@@ -392,7 +391,7 @@ export function AppShellClient({
         </div>
 
         <nav className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4">
-          {!sidebarCollapsed ? (
+          {!sidebarCollapsed && !isStudentOnly ? (
             <form action="/app/search" className="relative mb-4">
               <Search
                 aria-hidden="true"
@@ -409,68 +408,88 @@ export function AppShellClient({
           ) : null}
 
           <div className="space-y-1">
-            <NavigationLink
-              href="/app"
-              icon={LayoutDashboard}
-              label="Dashboard"
-              collapsed={sidebarCollapsed}
-              pathname={pathname}
-            />
-            <NavigationLink
-              href="/app/portal"
-              icon={UserRound}
-              label="My portal"
-              collapsed={sidebarCollapsed}
-              pathname={pathname}
-            />
-            <NavigationLink
-              href="/app/files"
-              icon={FolderLock}
-              label="Private files"
-              collapsed={sidebarCollapsed}
-              pathname={pathname}
-            />
-          </div>
-
-          {visibleGroups.map((group) => (
-            <section key={group.id} className="mt-5">
-              {sidebarCollapsed ? (
-                <div
-                  className="mx-2 mb-3 h-px bg-slate-800"
-                  aria-hidden="true"
+            {isStudentOnly ? (
+              STUDENT_NAVIGATION.map(([label, href]) => (
+                <NavigationLink
+                  key={href}
+                  href={href}
+                  icon={UserRound}
+                  label={label}
+                  collapsed={sidebarCollapsed}
+                  pathname={pathname}
                 />
-              ) : (
-                <div className="mb-2 flex items-center gap-2 px-3">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
-                    {group.label}
-                  </span>
-                  <span aria-hidden="true" className="h-px flex-1 bg-slate-900" />
-                </div>
-              )}
-
-              <div className="space-y-1">
-                {group.modules.map((module) => (
+              ))
+            ) : (
+              <>
+                <NavigationLink
+                  href="/app"
+                  icon={LayoutDashboard}
+                  label="Dashboard"
+                  collapsed={sidebarCollapsed}
+                  pathname={pathname}
+                />
+                <NavigationLink
+                  href="/app/portal"
+                  icon={UserRound}
+                  label="My portal"
+                  collapsed={sidebarCollapsed}
+                  pathname={pathname}
+                />
+                <NavigationLink
+                  href="/app/files"
+                  icon={FolderLock}
+                  label="Private files"
+                  collapsed={sidebarCollapsed}
+                  pathname={pathname}
+                />
+                {context.is_platform_admin || context.permissions.includes("reports.read") ? (
                   <NavigationLink
-                    key={module.id}
-                    href={moduleHref(module)}
-                    icon={module.icon}
-                    label={module.label}
+                    href="/app/reports"
+                    icon={ChartNoAxesCombined}
+                    label="Reports"
                     collapsed={sidebarCollapsed}
                     pathname={pathname}
                   />
-                ))}
-              </div>
-            </section>
-          ))}
+                ) : null}
+              </>
+            )}
+          </div>
+
+          {!isStudentOnly &&
+            visibleGroups.map((group) => (
+              <section key={group.id} className="mt-5">
+                {sidebarCollapsed ? (
+                  <div className="mx-2 mb-3 h-px bg-slate-800" aria-hidden="true" />
+                ) : (
+                  <div className="mb-2 flex items-center gap-2 px-3">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                      {group.label}
+                    </span>
+                    <span aria-hidden="true" className="h-px flex-1 bg-slate-900" />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  {group.modules.map((module) => (
+                    <NavigationLink
+                      key={module.id}
+                      href={moduleHref(module)}
+                      icon={module.icon}
+                      label={module.label}
+                      collapsed={sidebarCollapsed}
+                      pathname={pathname}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
         </nav>
 
         <div className="shrink-0 border-t border-slate-800 p-3">
           <div
             className={[
               "flex items-center rounded-xl",
-              sidebarCollapsed
-                ? "justify-center"
-                : "gap-3 bg-slate-900/60 p-2",
+              sidebarCollapsed ? "justify-center" : "gap-3 bg-slate-900/60 p-2"
             ].join(" ")}
           >
             <span
@@ -483,12 +502,8 @@ export function AppShellClient({
             {!sidebarCollapsed ? (
               <>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-white">
-                    {name}
-                  </span>
-                  <span className="block truncate text-xs text-slate-500">
-                    {primaryRole}
-                  </span>
+                  <span className="block truncate text-sm font-semibold text-white">{name}</span>
+                  <span className="block truncate text-xs text-slate-500">{primaryRole}</span>
                 </span>
 
                 <form action={logoutAction}>
@@ -541,67 +556,94 @@ export function AppShellClient({
             </div>
 
             <nav className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
-              <form action="/app/search" className="relative mb-4">
-                <Search
-                  aria-hidden="true"
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  type="search"
-                  name="q"
-                  aria-label="Search SchoolDB"
-                  placeholder="Search SchoolDB"
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
-                />
-              </form>
+              {!isStudentOnly ? (
+                <form action="/app/search" className="relative mb-4">
+                  <Search
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="search"
+                    name="q"
+                    aria-label="Search SchoolDB"
+                    placeholder="Search SchoolDB"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </form>
+              ) : null}
 
               <div className="space-y-1">
-                <MobileNavigationLink
-                  href="/app"
-                  icon={LayoutDashboard}
-                  label="Dashboard"
-                  pathname={pathname}
-                  onNavigate={closeMobileNavigation}
-                />
-                <MobileNavigationLink
-                  href="/app/portal"
-                  icon={UserRound}
-                  label="My portal"
-                  pathname={pathname}
-                  onNavigate={closeMobileNavigation}
-                />
-                <MobileNavigationLink
-                  href="/app/files"
-                  icon={FolderLock}
-                  label="Private files"
-                  pathname={pathname}
-                  onNavigate={closeMobileNavigation}
-                />
-              </div>
-
-              {visibleGroups.map((group) => (
-                <section key={group.id} className="mt-5">
-                  <div className="mb-2 flex items-center gap-2 px-3">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                      {group.label}
-                    </span>
-                    <span className="h-px flex-1 bg-slate-200" aria-hidden="true" />
-                  </div>
-
-                  <div className="space-y-1">
-                    {group.modules.map((module) => (
+                {isStudentOnly ? (
+                  STUDENT_NAVIGATION.map(([label, href]) => (
+                    <MobileNavigationLink
+                      key={href}
+                      href={href}
+                      icon={UserRound}
+                      label={label}
+                      pathname={pathname}
+                      onNavigate={closeMobileNavigation}
+                    />
+                  ))
+                ) : (
+                  <>
+                    <MobileNavigationLink
+                      href="/app"
+                      icon={LayoutDashboard}
+                      label="Dashboard"
+                      pathname={pathname}
+                      onNavigate={closeMobileNavigation}
+                    />
+                    <MobileNavigationLink
+                      href="/app/portal"
+                      icon={UserRound}
+                      label="My portal"
+                      pathname={pathname}
+                      onNavigate={closeMobileNavigation}
+                    />
+                    <MobileNavigationLink
+                      href="/app/files"
+                      icon={FolderLock}
+                      label="Private files"
+                      pathname={pathname}
+                      onNavigate={closeMobileNavigation}
+                    />
+                    {context.is_platform_admin || context.permissions.includes("reports.read") ? (
                       <MobileNavigationLink
-                        key={module.id}
-                        href={moduleHref(module)}
-                        icon={module.icon}
-                        label={module.label}
+                        href="/app/reports"
+                        icon={ChartNoAxesCombined}
+                        label="Reports"
                         pathname={pathname}
                         onNavigate={closeMobileNavigation}
                       />
-                    ))}
-                  </div>
-                </section>
-              ))}
+                    ) : null}
+                  </>
+                )}
+              </div>
+
+              {!isStudentOnly &&
+                visibleGroups.map((group) => (
+                  <section key={group.id} className="mt-5">
+                    <div className="mb-2 flex items-center gap-2 px-3">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                        {group.label}
+                      </span>
+                      <span className="h-px flex-1 bg-slate-200" aria-hidden="true" />
+                    </div>
+
+                    <div className="space-y-1">
+                      {group.modules.map((module) => (
+                        <MobileNavigationLink
+                          key={module.id}
+                          href={moduleHref(module)}
+                          icon={module.icon}
+                          label={module.label}
+                          pathname={pathname}
+                          onNavigate={closeMobileNavigation}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
             </nav>
 
             <div className="shrink-0 border-t border-slate-200 p-3">
@@ -613,9 +655,7 @@ export function AppShellClient({
                   <span className="block truncate text-sm font-semibold text-slate-950">
                     {name}
                   </span>
-                  <span className="block truncate text-xs text-slate-500">
-                    {primaryRole}
-                  </span>
+                  <span className="block truncate text-xs text-slate-500">{primaryRole}</span>
                 </span>
               </div>
             </div>
@@ -654,32 +694,36 @@ export function AppShellClient({
               <p className="max-w-48 truncate text-sm font-semibold text-slate-900">
                 {routeContext.title}
               </p>
-              <p className="max-w-56 truncate text-xs text-slate-500">
-                {routeContext.description}
-              </p>
+              <p className="max-w-56 truncate text-xs text-slate-500">{routeContext.description}</p>
             </div>
 
-            <form action="/app/search" className="relative hidden max-w-xl flex-1 md:block">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                type="search"
-                name="q"
-                aria-label="Search SchoolDB"
-                placeholder="Search students, staff, invoices…"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
-              />
-            </form>
+            {!isStudentOnly ? (
+              <form action="/app/search" className="relative hidden max-w-xl flex-1 md:block">
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="search"
+                  name="q"
+                  aria-label="Search SchoolDB"
+                  placeholder="Search students, staff, invoices…"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                />
+              </form>
+            ) : (
+              <div className="hidden flex-1 md:block" />
+            )}
 
-            <Link
-              href="/app/search"
-              aria-label="Search"
-              className="ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:hidden"
-            >
-              <FileSearch aria-hidden="true" className="h-5 w-5" />
-            </Link>
+            {!isStudentOnly ? (
+              <Link
+                href="/app/search"
+                aria-label="Search"
+                className="ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:hidden"
+              >
+                <FileSearch aria-hidden="true" className="h-5 w-5" />
+              </Link>
+            ) : null}
 
             <div className="ml-auto hidden min-w-0 items-center gap-2 md:flex">
               <SchoolSwitcher
@@ -713,17 +757,16 @@ export function AppShellClient({
                   </span>
                 </span>
 
-                <ChevronDown aria-hidden="true" className="hidden h-4 w-4 text-slate-400 lg:block" />
+                <ChevronDown
+                  aria-hidden="true"
+                  className="hidden h-4 w-4 text-slate-400 lg:block"
+                />
               </summary>
 
               <div className="absolute right-0 top-12 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
                 <div className="px-3 py-2.5">
-                  <p className="truncate text-sm font-semibold text-slate-950">
-                    {name}
-                  </p>
-                  <p className="truncate text-xs text-slate-500">
-                    {primaryRole}
-                  </p>
+                  <p className="truncate text-sm font-semibold text-slate-950">{name}</p>
+                  <p className="truncate text-xs text-slate-500">{primaryRole}</p>
                 </div>
 
                 <div className="my-1 h-px bg-slate-100" />
@@ -734,9 +777,7 @@ export function AppShellClient({
                   </p>
                   <div className="mt-2 flex items-center gap-2">
                     <ContextIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-500" />
-                    <p className="truncate text-sm font-medium text-slate-800">
-                      {contextName}
-                    </p>
+                    <p className="truncate text-sm font-medium text-slate-800">{contextName}</p>
                   </div>
                 </div>
 
@@ -752,7 +793,7 @@ export function AppShellClient({
 
                 {context.is_platform_admin || context.permissions.includes("settings.manage") ? (
                   <Link
-                    href="/app/setup"
+                    href="/app/settings"
                     className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                   >
                     <Settings aria-hidden="true" className="h-4 w-4" />

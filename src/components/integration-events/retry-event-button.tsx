@@ -3,9 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import type { IntegrationEventStatus } from "@/lib/integration-events/types";
+import { retryIntegrationEventAction } from "@/app/app/modules/integration-events/actions";
 
 interface RetryEventButtonProps {
-  eventId: bigint;
+  eventId: number;
   status: IntegrationEventStatus;
   connectionStatus?: string;
   workerExists?: boolean;
@@ -15,23 +16,19 @@ export function RetryEventButton({
   eventId,
   status,
   connectionStatus,
-  workerExists = false,
+  workerExists = false
 }: RetryEventButtonProps) {
   const canRetry = status === "failed" || status === "dead_letter";
   const connectionActive = connectionStatus === "active";
 
   if (!canRetry) {
-    return (
-      <span className="text-xs text-muted-foreground">
-        Retry unavailable
-      </span>
-    );
+    return <span className="text-xs text-muted-foreground">Retry unavailable</span>;
   }
 
   if (!workerExists) {
     return (
       <span className="text-xs text-muted-foreground">
-        Retry unavailable - Integration processing has not been configured
+        Retry unavailable - Integration worker is not deployed
       </span>
     );
   }
@@ -45,7 +42,7 @@ export function RetryEventButton({
   }
 
   return (
-    <form action="/app/modules/integration-events/actions" method="POST">
+    <form action={retryIntegrationEventAction}>
       <input type="hidden" name="eventId" value={eventId.toString()} />
       <Button type="submit" variant="secondary" size="sm">
         <RefreshCw className="h-4 w-4 mr-2" />

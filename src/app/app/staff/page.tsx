@@ -1,2 +1,82 @@
-import Link from "next/link";import { requireUserContext } from "@/lib/auth/context";import { createClient } from "@/lib/supabase/server";import { PageHeader } from "@/components/layout/page-header";import { PageContainer } from "@/components/layout/page-container";import { Card,CardContent } from "@/components/ui/card";import { Badge } from "@/components/ui/badge";import { EmptyState } from "@/components/feedback/empty-state";
-export default async function Staff(){const c=await requireUserContext("staff.read");if(!c.active_school_id)return <PageContainer><EmptyState title="Select a school"/></PageContainer>;const s=await createClient();const {data,error}=await (s.from("employees") as any).select("id,employee_number,employment_type,hire_date,status,people(first_name,middle_name,last_name,primary_email,primary_phone),employee_assignments!employee_assignments_employee_fk(job_title,is_primary,departments(name),campuses(name))").eq("school_id",c.active_school_id).order("created_at",{ascending:false});if(error)throw new Error(error.message);return <PageContainer><PageHeader title="Staff and HR" description="Employee records, assignments, contracts, leave, qualifications and payroll linkage." actionHref="/app/staff/new" actionLabel="Onboard employee"/>{data?.length?<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.map((e:any)=>{const a=e.employee_assignments?.find((x:any)=>x.is_primary)||e.employee_assignments?.[0];return <Link key={e.id} href={`/app/staff/${e.id}`}><Card className="h-full hover:shadow-md"><CardContent><div className="flex justify-between gap-3"><div><p className="text-lg font-bold">{e.people?.first_name} {e.people?.last_name}</p><p className="text-sm text-slate-500">{e.employee_number} · {a?.job_title??"Unassigned"}</p></div><Badge>{e.status}</Badge></div><p className="mt-4 text-sm">{a?.departments?.name??"No department"}</p><p className="mt-1 text-xs text-slate-500">{e.people?.primary_phone??e.people?.primary_email??"No contact"}</p><div className="mt-4"><Badge>{e.employment_type}</Badge></div></CardContent></Card></Link>})}</div>:<EmptyState actionHref="/app/staff/new" actionLabel="Onboard first employee"/>}</PageContainer>}
+import Link from "next/link";
+import { getAccessContext } from "@/lib/auth/get-access-context";
+import { getAuthorizedStaffDirectory } from "@/lib/staff/queries";
+import { PageHeader } from "@/components/layout/page-header";
+import { PageContainer } from "@/components/layout/page-container";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/feedback/empty-state";
+import { Input } from "@/components/ui/input";
+
+export default async function Staff({
+  searchParams
+}: {
+  searchParams: Promise<{ page?: string; q?: string }>;
+}) {
+  const context = await getAccessContext("staff.read");
+  if (!context.activeSchoolId)
+    return (
+      <PageContainer>
+        <EmptyState title="Select a school" />
+      </PageContainer>
+    );
+  const params = await searchParams;
+  const page = Math.max(1, Number(params.page) || 1);
+  const { rows, count } = await getAuthorizedStaffDirectory(context, { page, search: params.q });
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Staff and HR"
+        description="Active-school employee directory."
+        actionHref="/app/staff/new"
+        actionLabel="Onboard employee"
+      />
+      <form className="mb-5 max-w-lg">
+        <Input name="q" defaultValue={params.q} placeholder="Search employee number…" />
+      </form>
+      {rows.length ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {rows.map((employee: any) => {
+              const assignment =
+                employee.employee_assignments?.find((item: any) => item.is_primary) ??
+                employee.employee_assignments?.[0];
+              return (
+                <Link key={employee.id} href={`/app/staff/${employee.id}`}>
+                  <Card className="h-full hover:shadow-md">
+                    <CardContent>
+                      <div className="flex justify-between gap-3">
+                        <div>
+                          <p className="text-lg font-bold">
+                            {employee.people?.first_name} {employee.people?.last_name}
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {employee.employee_number} · {assignment?.job_title ?? "Unassigned"}
+                          </p>
+                        </div>
+                        <Badge>{employee.status}</Badge>
+                      </div>
+                      <p className="mt-4 text-sm">
+                        {assignment?.departments?.name ?? "No department"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {employee.people?.primary_phone ??
+                          employee.people?.primary_email ??
+                          "No contact"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+          <p className="mt-4 text-sm text-slate-500">
+            Page {page} · {count} records
+          </p>
+        </>
+      ) : (
+        <EmptyState />
+      )}
+    </PageContainer>
+  );
+}

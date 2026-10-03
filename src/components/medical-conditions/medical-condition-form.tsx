@@ -7,7 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from "@/components/ui/select";
 import { Loader2, Building2, Globe, Search } from "lucide-react";
 import type { ConditionType } from "@/lib/medical-conditions/types";
@@ -29,7 +29,7 @@ interface MedicalConditionFormProps {
   onOpenChange: (open: boolean) => void;
   context: UserContext;
   schools: Array<{ id: string; name: string }>;
-  action: (formData: FormData) => Promise<MedicalConditionActionState>;
+  action: (formData: FormData) => void | Promise<MedicalConditionActionState>;
   state: MedicalConditionActionState;
   onEdit?: (formData: FormData) => Promise<{ success?: boolean; error?: string }>;
   editCondition?: {
@@ -50,20 +50,30 @@ export function MedicalConditionForm({
   action,
   state,
   onEdit,
-  editCondition,
+  editCondition
 }: MedicalConditionFormProps) {
   const isPlatformAdmin = context.is_platform_admin;
   const isEdit = !!editCondition;
   const hasActiveSchool = !!context.active_school_id && context.active_school_id !== "__platform__";
 
-  const defaultScope = hasActiveSchool ? "current_school" : (isPlatformAdmin ? "global" : "current_school");
+  const defaultScope = hasActiveSchool
+    ? "current_school"
+    : isPlatformAdmin
+      ? "global"
+      : "current_school";
 
   const [scope, setScope] = useState<string>(state.values?.scope || defaultScope);
-  const [targetSchoolId, setTargetSchoolId] = useState<string>(state.values?.target_school_id || "");
+  const [targetSchoolId, setTargetSchoolId] = useState<string>(
+    state.values?.target_school_id || ""
+  );
   const [code, setCode] = useState<string>(state.values?.code || editCondition?.code || "");
   const [name, setName] = useState<string>(state.values?.name || editCondition?.name || "");
-  const [conditionType, setConditionType] = useState<string>(state.values?.condition_type || editCondition?.condition_type || "condition");
-  const [description, setDescription] = useState<string>(state.values?.description || editCondition?.description || "");
+  const [conditionType, setConditionType] = useState<string>(
+    state.values?.condition_type || editCondition?.condition_type || "condition"
+  );
+  const [description, setDescription] = useState<string>(
+    state.values?.description || editCondition?.description || ""
+  );
   const [schoolSearch, setSchoolSearch] = useState<string>("");
   const [editError, setEditError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -71,11 +81,15 @@ export function MedicalConditionForm({
   // Reset form when dialog opens/closes or editCondition changes
   useEffect(() => {
     if (open) {
+      // Reset the draft from the newly opened record/action state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setScope(state.values?.scope || defaultScope);
       setTargetSchoolId(state.values?.target_school_id || "");
       setCode(state.values?.code || editCondition?.code || "");
       setName(state.values?.name || editCondition?.name || "");
-      setConditionType(state.values?.condition_type || editCondition?.condition_type || "condition");
+      setConditionType(
+        state.values?.condition_type || editCondition?.condition_type || "condition"
+      );
       setDescription(state.values?.description || editCondition?.description || "");
       setEditError("");
       setIsSubmitting(false);
@@ -84,19 +98,19 @@ export function MedicalConditionForm({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (isEdit && onEdit && editCondition) {
       setIsSubmitting(true);
       setEditError("");
-      
+
       const formData = new FormData();
       formData.append("code", code);
       formData.append("name", name);
       formData.append("condition_type", conditionType);
       formData.append("description", description);
-      
+
       const result = await onEdit(formData);
-      
+
       if (result.error) {
         setEditError(result.error);
         setIsSubmitting(false);
@@ -116,25 +130,44 @@ export function MedicalConditionForm({
       if (editCondition?.school_id === null) {
         return { title: "Global catalogue", subtitle: "Available to all schools", icon: Globe };
       }
-      const school = schools.find(s => s.id === editCondition?.school_id);
-      return { title: school?.name || "Unknown school", subtitle: "School-specific condition", icon: Building2 };
+      const school = schools.find((s) => s.id === editCondition?.school_id);
+      return {
+        title: school?.name || "Unknown school",
+        subtitle: "School-specific condition",
+        icon: Building2
+      };
     }
 
     if (scope === "global") {
-      return { title: "Global catalogue", subtitle: "This condition will be available to every school.", icon: Globe };
+      return {
+        title: "Global catalogue",
+        subtitle: "This condition will be available to every school.",
+        icon: Globe
+      };
     }
     if (scope === "current_school") {
-      return { title: context.active_school?.name || "Current school", subtitle: "This condition will only be available in this school.", icon: Building2 };
+      return {
+        title: (context.active_school?.name as string | undefined) || "Current school",
+        subtitle: "This condition will only be available in this school.",
+        icon: Building2
+      };
     }
     if (scope === "specific_school") {
-      const school = schools.find(s => s.id === targetSchoolId);
-      return { title: school?.name || "Select a school", subtitle: "This condition will only be available in the selected school.", icon: Building2 };
+      const school = schools.find((s) => s.id === targetSchoolId);
+      return {
+        title: school?.name || "Select a school",
+        subtitle: "This condition will only be available in the selected school.",
+        icon: Building2
+      };
     }
     return { title: "Unknown", subtitle: "", icon: Building2 };
   };
 
   const destination = getDestinationText();
   const DestinationIcon = destination.icon;
+
+  // Wrap action to discard return value so it satisfies <form action>'s void signature
+  const formAction = isEdit ? undefined : (fd: FormData) => { void action(fd); };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -159,7 +192,11 @@ export function MedicalConditionForm({
           </div>
         )}
 
-        <form action={isEdit ? undefined : action} onSubmit={isEdit ? handleSubmit : undefined} className="space-y-3">
+        <form
+          action={formAction}
+          onSubmit={isEdit ? handleSubmit : undefined}
+          className="space-y-3"
+        >
           <input type="hidden" name="scope" value={scope} />
           <input type="hidden" name="target_school_id" value={targetSchoolId} />
           {isEdit && editCondition && (
@@ -179,17 +216,14 @@ export function MedicalConditionForm({
           {canSelectScope && (
             <div className="space-y-2">
               <label className="text-sm font-medium">Catalogue scope</label>
-              <Select
-                value={scope}
-                onValueChange={setScope}
-              >
+              <Select value={scope} onValueChange={setScope}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {hasActiveSchool && (
                     <SelectItem value="current_school">
-                      Current school — {context.active_school?.name}
+                      Current school — {(context.active_school?.name as string | undefined) ?? ""}
                     </SelectItem>
                   )}
                   <SelectItem value="global">Global catalogue</SelectItem>
@@ -201,7 +235,8 @@ export function MedicalConditionForm({
 
           {!isPlatformAdmin && !isEdit && (
             <div className="text-sm text-muted-foreground">
-              <span className="font-medium">Catalogue scope:</span> Current school — {context.active_school?.name}
+              <span className="font-medium">Catalogue scope:</span> Current school —{" "}
+              {(context.active_school?.name as string | undefined) ?? ""}
             </div>
           )}
 
@@ -270,11 +305,7 @@ export function MedicalConditionForm({
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Condition type</label>
-            <Select
-              value={conditionType}
-              onValueChange={setConditionType}
-              name="condition_type"
-            >
+            <Select value={conditionType} onValueChange={setConditionType} name="condition_type">
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -301,7 +332,12 @@ export function MedicalConditionForm({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting || state.success}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSubmitting || state.success}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || state.success}>

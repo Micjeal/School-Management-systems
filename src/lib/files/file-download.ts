@@ -70,7 +70,6 @@ export async function logFileDownload(
   try {
     // This would insert into a file_access_logs table if implemented
     // For now, we'll just log to console
-    console.log(`File download: ${source}/${fileId} for school ${schoolId}`);
   } catch (error) {
     console.error("Error logging file download:", error);
   }

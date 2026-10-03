@@ -6,20 +6,14 @@ import {
   MessageSquare,
   ShieldCheck,
   Cloud,
-  GraduationCap,
+  GraduationCap
 } from "lucide-react";
 
 export type IntegrationProviderDefinition = {
   code: string;
   name: string;
   description: string;
-  integrationType:
-    | "payments"
-    | "accounting"
-    | "messaging"
-    | "identity"
-    | "learning"
-    | "storage";
+  integrationType: "payments" | "accounting" | "messaging" | "identity" | "learning" | "storage";
   icon: LucideIcon;
   implemented: boolean;
   supportsOAuth: boolean;
@@ -34,10 +28,10 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProviderDefinition[] = [
     description: "Receive and reconcile payments.",
     integrationType: "payments",
     icon: Banknote,
-    implemented: true,
+    implemented: false,
     supportsOAuth: false,
     supportsInbound: true,
-    supportsOutbound: true,
+    supportsOutbound: true
   },
   {
     code: "example_accounting",
@@ -48,7 +42,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProviderDefinition[] = [
     implemented: false,
     supportsOAuth: false,
     supportsInbound: true,
-    supportsOutbound: true,
+    supportsOutbound: true
   },
   {
     code: "example_sms",
@@ -59,7 +53,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProviderDefinition[] = [
     implemented: false,
     supportsOAuth: false,
     supportsInbound: false,
-    supportsOutbound: true,
+    supportsOutbound: true
   },
   {
     code: "example_email",
@@ -70,7 +64,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProviderDefinition[] = [
     implemented: false,
     supportsOAuth: false,
     supportsInbound: false,
-    supportsOutbound: true,
+    supportsOutbound: true
   },
   {
     code: "example_identity",
@@ -81,7 +75,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProviderDefinition[] = [
     implemented: false,
     supportsOAuth: true,
     supportsInbound: true,
-    supportsOutbound: false,
+    supportsOutbound: false
   },
   {
     code: "example_learning",
@@ -92,7 +86,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProviderDefinition[] = [
     implemented: false,
     supportsOAuth: false,
     supportsInbound: true,
-    supportsOutbound: true,
+    supportsOutbound: true
   },
   {
     code: "example_storage",
@@ -103,15 +97,17 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProviderDefinition[] = [
     implemented: false,
     supportsOAuth: true,
     supportsInbound: false,
-    supportsOutbound: true,
-  },
+    supportsOutbound: true
+  }
 ];
 
 export function getProviderByCode(code: string): IntegrationProviderDefinition | undefined {
   return INTEGRATION_PROVIDERS.find((p) => p.code === code);
 }
 
-export function getProvidersByType(type: IntegrationProviderDefinition["integrationType"]): IntegrationProviderDefinition[] {
+export function getProvidersByType(
+  type: IntegrationProviderDefinition["integrationType"]
+): IntegrationProviderDefinition[] {
   return INTEGRATION_PROVIDERS.filter((p) => p.integrationType === type);
 }
 

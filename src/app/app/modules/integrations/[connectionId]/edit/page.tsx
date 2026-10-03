@@ -1,28 +1,36 @@
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserContext } from "@/lib/auth/context";
 import { canManageIntegration } from "@/lib/integrations/scope";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { getProviderByCode } from "@/lib/integrations/providers";
+import { isUuid } from "@/lib/auth/access-errors";
+import { updateIntegrationAction } from "../../actions";
 
 export default async function EditIntegrationPage({
   params,
-  searchParams,
+  searchParams
 }: {
-  params: { connectionId: string };
-  searchParams: { message?: string; error?: string };
+  params: Promise<{ connectionId: string }>;
+  searchParams: Promise<{ message?: string; error?: string }>;
 }) {
+  const [{ connectionId }, query] = await Promise.all([params, searchParams]);
   const context = await requireUserContext("settings.manage");
+  if (!isUuid(connectionId)) notFound();
 
   const supabase = await createClient();
 
   // Load the connection
-  const { data: connection, error: connectionError } = await (supabase
+  let connectionQuery = supabase
     .from("integration_connections")
-    .select("*")
-    .eq("id", params.connectionId)
-    .maybeSingle() as any);
+    .select("id,school_id,provider,integration_type,name,status,configuration,last_connected_at,last_error,version")
+    .eq("id", connectionId);
+  connectionQuery = context.active_school_id
+    ? connectionQuery.eq("school_id", context.active_school_id)
+    : connectionQuery.is("school_id", null);
+  const { data: connection, error: connectionError } = await (connectionQuery.maybeSingle() as any);
 
   if (connectionError || !connection) {
     notFound();
@@ -30,7 +38,7 @@ export default async function EditIntegrationPage({
 
   // Verify authorization
   if (!canManageIntegration(context, connection.school_id)) {
-    redirect("/access-denied");
+    notFound();
   }
 
   const provider = getProviderByCode(connection.provider);
@@ -39,33 +47,29 @@ export default async function EditIntegrationPage({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" href={`/app/modules/integrations/${params.connectionId}`}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/app/modules/integrations/${connectionId}`}><ArrowLeft className="h-4 w-4 mr-2" />Back</Link>
         </Button>
         <div>
           <h1 className="text-2xl font-bold">Edit Integration</h1>
-          <p className="text-muted-foreground">
-            {connection.name}
-          </p>
+          <p className="text-muted-foreground">{connection.name}</p>
         </div>
       </div>
 
       {/* Messages */}
-      {searchParams.message && (
+      {query.message && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded">
-          {searchParams.message}
+          {query.message}
         </div>
       )}
-      {searchParams.error && (
+      {query.error && (
         <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded">
-          {searchParams.error}
+          {query.error}
         </div>
       )}
 
       {/* Edit form */}
-      <form action="/app/modules/integrations/actions" method="POST">
-        <input type="hidden" name="connectionId" value={params.connectionId} />
+      <form action={updateIntegrationAction.bind(null, connectionId)}>
         <input type="hidden" name="version" value={connection.version} />
 
         {/* Name */}
@@ -131,13 +135,7 @@ export default async function EditIntegrationPage({
           <Button type="submit" variant="primary">
             Save changes
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => redirect(`/app/modules/integrations/${params.connectionId}`)}
-          >
-            Cancel
-          </Button>
+          <Button variant="secondary" asChild><Link href={`/app/modules/integrations/${connectionId}`}>Cancel</Link></Button>
         </div>
 
         <p className="text-xs text-muted-foreground mt-4">

@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { GraduationCap, CalendarCheck, ChartNoAxesColumnIncreasing, WalletCards, BookOpen, CalendarDays } from "lucide-react";
+import {
+  GraduationCap,
+  CalendarCheck,
+  ChartNoAxesColumnIncreasing,
+  WalletCards,
+  BookOpen,
+  CalendarDays
+} from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PortalSection } from "./portal-section";
@@ -13,7 +20,38 @@ type StudentPortalProps = {
 
 export function StudentPortal({ data }: StudentPortalProps) {
   return (
-    <PortalSection title="My academics" icon={<GraduationCap className="h-5 w-5 text-slate-600" />}>
+    <PortalSection
+      title="My student portal"
+      icon={<GraduationCap className="h-5 w-5 text-slate-600" />}
+    >
+      <div className="mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {(
+          [
+            ["Profile", "/app/profile"],
+            ["Timetable", "/app/portal/timetable"],
+            ["Attendance", "/app/portal/attendance"],
+            ["Results", "/app/portal/results"],
+            ["Report cards", "/app/portal/report-cards"],
+            ["Fees", "/app/portal/finance"],
+            ["Library", "/app/portal/library"],
+            ["Boarding", "/app/portal/boarding"],
+            ["Transport", "/app/portal/transport"],
+            ["Announcements", "/app/portal/announcements"],
+            ["Messages", "/app/portal/messages"],
+            ["Files", "/app/portal/files"],
+            ["Notifications", "/app/portal/notifications"],
+            ["Account", "/app/portal/account"]
+          ] as const
+        ).map(([label, href]) => (
+          <Link
+            key={href}
+            href={href}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <StudentSummaryCard data={data} />
         <StudentAttendanceCard data={data} />
@@ -95,8 +133,8 @@ function StudentAttendanceCard({ data }: { data: StudentPortalData }) {
         <CardContent>
           <PortalEmptyState
             icon={<CalendarCheck className="h-8 w-8" />}
-            title="No attendance recorded"
-            description="No attendance has been recorded yet."
+            title="No attendance recorded yet"
+            description="Attendance records will appear here once your teachers have started taking attendance."
           />
         </CardContent>
       </Card>
@@ -148,8 +186,8 @@ function StudentResultsCard({ data }: { data: StudentPortalData }) {
         <CardContent>
           <PortalEmptyState
             icon={<ChartNoAxesColumnIncreasing className="h-8 w-8" />}
-            title="No published results"
-            description="No published results are available yet."
+            title="No published results yet"
+            description="Your results will appear here once your teachers have published them."
           />
         </CardContent>
       </Card>
@@ -168,7 +206,10 @@ function StudentResultsCard({ data }: { data: StudentPortalData }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {data.results.map((result) => (
-          <div key={result.id} className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3">
+          <div
+            key={result.id}
+            className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3"
+          >
             <div>
               <p className="font-medium text-sm">{result.subject}</p>
               <p className="text-xs text-slate-600">{result.term}</p>
@@ -195,7 +236,7 @@ function StudentFinanceCard({ data }: { data: StudentPortalData }) {
           <PortalEmptyState
             icon={<WalletCards className="h-8 w-8" />}
             title="No outstanding invoices"
-            description="You have no outstanding invoices."
+            description="You have no outstanding invoices at this time."
           />
         </CardContent>
       </Card>
@@ -221,7 +262,10 @@ function StudentFinanceCard({ data }: { data: StudentPortalData }) {
         </div>
         <div className="space-y-3">
           {data.invoices.map((invoice) => (
-            <div key={invoice.id} className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3">
+            <div
+              key={invoice.id}
+              className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3"
+            >
               <div>
                 <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
                 <p className="text-xs text-slate-600">Due: {formatDate(invoice.dueDate)}</p>
@@ -248,8 +292,8 @@ function StudentLibraryCard({ data }: { data: StudentPortalData }) {
         <CardContent>
           <PortalEmptyState
             icon={<BookOpen className="h-8 w-8" />}
-            title="No active loans"
-            description="You have no active library loans."
+            title="No active library loans"
+            description="You have no books currently checked out from the library."
           />
         </CardContent>
       </Card>
@@ -263,14 +307,15 @@ function StudentLibraryCard({ data }: { data: StudentPortalData }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {data.libraryLoans.map((loan) => (
-          <div key={loan.id} className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3">
+          <div
+            key={loan.id}
+            className="flex justify-between gap-3 rounded-lg border border-slate-200 p-3"
+          >
             <div>
               <p className="font-medium text-sm">{loan.title}</p>
               <p className="text-xs text-slate-600">Due: {formatDate(loan.dueAt)}</p>
             </div>
-            <Badge className={loan.isOverdue ? "bg-red-50 text-red-700" : ""}>
-              {loan.status}
-            </Badge>
+            <Badge className={loan.isOverdue ? "bg-red-50 text-red-700" : ""}>{loan.status}</Badge>
           </div>
         ))}
       </CardContent>
@@ -283,13 +328,13 @@ function StudentTimetableCard({ data }: { data: StudentPortalData }) {
     return (
       <Card>
         <CardHeader>
-          <h3 className="font-semibold">Today's Timetable</h3>
+          <h3 className="font-semibold">Today&apos;s Timetable</h3>
         </CardHeader>
         <CardContent>
           <PortalEmptyState
             icon={<CalendarDays className="h-8 w-8" />}
-            title="No lessons today"
-            description="You have no scheduled lessons for today."
+            title="No lessons scheduled today"
+            description="You have no classes scheduled for today. Enjoy your free time!"
           />
         </CardContent>
       </Card>
@@ -299,7 +344,7 @@ function StudentTimetableCard({ data }: { data: StudentPortalData }) {
   return (
     <Card>
       <CardHeader>
-        <h3 className="font-semibold">Today's Timetable</h3>
+        <h3 className="font-semibold">Today&apos;s Timetable</h3>
       </CardHeader>
       <CardContent className="space-y-3">
         {data.timetable.map((entry) => (
@@ -316,9 +361,7 @@ function StudentTimetableCard({ data }: { data: StudentPortalData }) {
                 <p>{entry.endsAt}</p>
               </div>
             </div>
-            {entry.room && (
-              <p className="mt-2 text-xs text-slate-500">Room: {entry.room}</p>
-            )}
+            {entry.room && <p className="mt-2 text-xs text-slate-500">Room: {entry.room}</p>}
           </div>
         ))}
       </CardContent>

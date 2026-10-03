@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export default async function ImportsPage() {
-  const context = await requireUserContext("settings.manage");
+  const context = await requireUserContext("imports.process");
   const supabase = await createClient();
   
   const { data: batches } = await (supabase.from("import_batches") as any)

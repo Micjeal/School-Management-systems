@@ -1,0 +1,16 @@
+begin;
+create or replace function private.can_request_export(target_school_id uuid,target_export_type text) returns boolean language sql stable security definer set search_path=public,private,pg_temp as $$ select private.has_permission(target_school_id,'reports.export') and case target_export_type when 'students' then private.has_permission(target_school_id,'students.read') when 'employees' then false when 'invoices' then private.has_permission(target_school_id,'finance.read') when 'payments' then private.has_permission(target_school_id,'finance.read') when 'attendance' then private.has_permission(target_school_id,'attendance.read') when 'results' then private.has_permission(target_school_id,'reports.read') when 'library' then private.has_permission(target_school_id,'library.manage') when 'inventory' then private.has_permission(target_school_id,'inventory.manage') else false end $$;
+revoke all on function private.can_request_export(uuid,text) from public,anon;
+grant execute on function private.can_request_export(uuid,text) to authenticated,service_role;
+alter table public.export_jobs drop constraint if exists export_jobs_type_valid;
+alter table public.export_jobs add constraint export_jobs_type_valid check(export_type in ('students','employees','invoices','payments','attendance','results','library','inventory'));
+do $$ declare p record; begin for p in select policyname from pg_policies where schemaname='public' and tablename='export_jobs' loop execute format('drop policy %I on public.export_jobs',p.policyname); end loop; end $$;
+create policy export_jobs_read on public.export_jobs for select to authenticated using(requested_by=auth.uid() or private.has_permission(school_id,'audit.read'));
+create policy export_jobs_insert on public.export_jobs for insert to authenticated with check(requested_by=auth.uid() and status='queued' and format='csv' and file_path is null and row_count is null and started_at is null and completed_at is null and expires_at is null and error_message is null and private.can_request_export(school_id,export_type));
+create or replace function public.cancel_export_job(target_export_job_id uuid) returns boolean language plpgsql security definer set search_path=public,private,pg_temp as $$ declare v_updated integer; begin update public.export_jobs set status='cancelled',updated_at=now() where id=target_export_job_id and requested_by=auth.uid() and status='queued'; get diagnostics v_updated=row_count; return v_updated=1; end $$;
+revoke all on function public.cancel_export_job(uuid) from public,anon;
+grant execute on function public.cancel_export_job(uuid) to authenticated,service_role;
+revoke all on public.export_jobs from anon,authenticated;
+grant select,insert on public.export_jobs to authenticated;
+grant all on public.export_jobs to service_role;
+commit;

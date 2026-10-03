@@ -11,7 +11,7 @@ import Link from "next/link";
 
 export default async function FileDetailPage({
   params,
-  searchParams,
+  searchParams
 }: {
   params: Promise<{ fileId: string }>;
   searchParams: Promise<{ source?: string }>;
@@ -124,7 +124,7 @@ export default async function FileDetailPage({
             </Button>
           )}
           {downloadUrl && (
-            <Button variant="primary" asChild>
+            <Button variant="outline" asChild>
               <a href={downloadUrl} target="_blank" rel="noopener noreferrer">
                 <DownloadIcon className="h-4 w-4 mr-2" />
                 Download

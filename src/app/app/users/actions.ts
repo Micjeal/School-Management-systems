@@ -9,7 +9,9 @@ const v = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 export async function inviteSchoolUser(formData: FormData) {
   const context = await requireUserContext("users.manage");
   const supabase = await createClient();
-  const schoolId = v(formData, "school_id") || context.active_school_id;
+  // School scope is server-derived from the selected, authorized tenant. A
+  // browser form must never be able to invite into a different school.
+  const schoolId = context.active_school_id;
   const email = v(formData, "email");
   const firstName = v(formData, "first_name");
   const lastName = v(formData, "last_name");

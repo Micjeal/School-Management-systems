@@ -8,6 +8,8 @@ import Link from "next/link";
 import { ArrowLeft, Lock, Globe, Building2, AlertTriangle } from "lucide-react";
 import { PermissionMatrix } from "@/components/roles/permission-matrix";
 import { saveRolePermissions } from "./actions";
+import { isUuid } from "@/lib/auth/access-errors";
+import { notFound } from "next/navigation";
 
 type PermissionItem = {
   id: string;
@@ -34,20 +36,22 @@ type Role = {
 
 export default async function RolePermissionsPage({
   params,
-  searchParams,
+  searchParams
 }: {
   params: Promise<{ roleId: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { roleId } = await params;
+  if (!isUuid(roleId)) notFound();
   const qp = await searchParams;
   const context = await requireUserContext("roles.read");
   const supabase = await createClient();
 
   // Load role details
-  const { data: role, error: roleError } = await supabase
+  let roleQuery = supabase
     .from("roles")
-    .select(`
+    .select(
+      `
       id,
       code,
       name,
@@ -56,9 +60,14 @@ export default async function RolePermissionsPage({
       is_system,
       is_active,
       school:schools(id,name)
-    `)
-    .eq("id", roleId)
-    .single() as any;
+    `
+    )
+    .eq("id", roleId);
+  if (!context.is_platform_admin) {
+    if (!context.active_school_id) notFound();
+    roleQuery = roleQuery.eq("school_id", context.active_school_id);
+  }
+  const { data: role, error: roleError } = (await roleQuery.single()) as any;
 
   if (roleError || !role) {
     return (
@@ -79,12 +88,8 @@ export default async function RolePermissionsPage({
 
   // Check authorization for editing
   const isGlobalRole = typedRole.school_id === null;
-  const isSuperAdmin = context.platform_roles.some(
-    (r) => r.code === "super_admin",
-  );
-  const isPlatformAdmin = context.platform_roles.some(
-    (r) => r.code === "platform_admin",
-  );
+  const isSuperAdmin = context.platform_roles.some((r) => r.code === "super_admin");
+  const isPlatformAdmin = context.platform_roles.some((r) => r.code === "platform_admin");
 
   let canEdit = false;
   let editDisabledReason: string | null = null;
@@ -109,31 +114,33 @@ export default async function RolePermissionsPage({
   const isPlatformAdminRole = ["super_admin", "platform_admin"].includes(typedRole.code);
   if (isPlatformAdminRole) {
     canEdit = false;
-    editDisabledReason = "Platform administrator access is controlled by platform authorization. This role should not be edited through the school permission matrix.";
+    editDisabledReason =
+      "Platform administrator access is controlled by platform authorization. This role should not be edited through the school permission matrix.";
   }
 
   // Load all permissions
   const { data: permissions } = await supabase
     .from("permissions")
-    .select(`
+    .select(
+      `
       id,
       code,
       module,
       name,
       description,
       risk_level
-    `)
+    `
+    )
     .order("module")
     .order("name");
 
   // Load existing role permissions
-  const { data: rolePermissions } = await supabase
+  const { data: rolePermissions } = (await supabase
     .from("role_permissions")
     .select("permission_id")
-    .eq("role_id", roleId) as any;
+    .eq("role_id", roleId)) as any;
 
-  const initialPermissionIds =
-    rolePermissions?.map((row: any) => row.permission_id) || [];
+  const initialPermissionIds = rolePermissions?.map((row: any) => row.permission_id) || [];
 
   const totalPermissions = permissions?.length || 0;
   const selectedCount = initialPermissionIds.length;
@@ -153,9 +160,7 @@ export default async function RolePermissionsPage({
       )}
 
       {qp.error && (
-        <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-          {qp.error}
-        </div>
+        <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{qp.error}</div>
       )}
 
       {/* Role details card */}
@@ -191,30 +196,21 @@ export default async function RolePermissionsPage({
                 )}
 
                 {role.is_active ? (
-                  <Badge className="bg-emerald-100 text-emerald-700">
-                    Active
-                  </Badge>
+                  <Badge className="bg-emerald-100 text-emerald-700">Active</Badge>
                 ) : (
-                  <Badge className="bg-slate-100 text-slate-700">
-                    Inactive
-                  </Badge>
+                  <Badge className="bg-slate-100 text-slate-700">Inactive</Badge>
                 )}
 
                 {role.is_system ? (
-                  <Badge className="bg-amber-100 text-amber-700">
-                    System
-                  </Badge>
+                  <Badge className="bg-amber-100 text-amber-700">System</Badge>
                 ) : (
-                  <Badge className="bg-blue-100 text-blue-700">
-                    Custom
-                  </Badge>
+                  <Badge className="bg-blue-100 text-blue-700">Custom</Badge>
                 )}
               </div>
 
               <div className="text-sm">
                 <span className="font-semibold">{selectedCount}</span> of{" "}
-                <span className="font-semibold">{totalPermissions}</span>{" "}
-                permissions selected
+                <span className="font-semibold">{totalPermissions}</span> permissions selected
               </div>
             </div>
 
@@ -232,9 +228,7 @@ export default async function RolePermissionsPage({
               <Globe className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-700">
                 <p className="font-semibold">Global role</p>
-                <p>
-                  Changes to this role affect every school that uses it.
-                </p>
+                <p>Changes to this role affect every school that uses it.</p>
               </div>
             </div>
           )}
@@ -244,9 +238,7 @@ export default async function RolePermissionsPage({
               <Building2 className="h-5 w-5 text-slate-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-slate-700">
                 <p className="font-semibold">School role</p>
-                <p>
-                  These permissions apply only within {typedRole.school.name}.
-                </p>
+                <p>These permissions apply only within {typedRole.school.name}.</p>
               </div>
             </div>
           )}
@@ -257,8 +249,8 @@ export default async function RolePermissionsPage({
               <div className="text-sm text-amber-700">
                 <p className="font-semibold">Platform administrator role</p>
                 <p>
-                  Platform administrator access is controlled by platform authorization.
-                  This role should not be edited through the school permission matrix.
+                  Platform administrator access is controlled by platform authorization. This role
+                  should not be edited through the school permission matrix.
                 </p>
               </div>
             </div>
